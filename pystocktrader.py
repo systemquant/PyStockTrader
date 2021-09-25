@@ -272,17 +272,16 @@ class Window(QtWidgets.QMainWindow):
             self.nt_pushButton_03.setVisible(boolean2)
             self.nt_tableWidget.setVisible(boolean2)
             self.ns_tableWidget.setVisible(boolean2)
-
-    def ButtonClicked_2(self):
-        if self.main_tabWidget.currentWidget() == self.td_tab:
-            if self.geometry().width() > 1000:
-                self.setGeometry(self.geometry().x(), self.geometry().y(), 722, 383)
-                self.zo_pushButton.setStyleSheet(style_bc_dk)
-            else:
-                self.setGeometry(self.geometry().x(), self.geometry().y(), 1403, 763)
-                self.zo_pushButton.setStyleSheet(style_bc_bt)
         else:
             QtWidgets.QMessageBox.warning(self, '오류 알림', '해당 버튼은 트레이더탭에서만 작동합니다.\n')
+
+    def ButtonClicked_2(self):
+        if self.geometry().width() > 1000:
+            self.setGeometry(self.geometry().x(), self.geometry().y(), 722, 383)
+            self.zo_pushButton.setStyleSheet(style_bc_dk)
+        else:
+            self.setGeometry(self.geometry().x(), self.geometry().y(), 1403, 763)
+            self.zo_pushButton.setStyleSheet(style_bc_bt)
 
     def ButtonClicked_4(self):
         buttonReply = QtWidgets.QMessageBox.warning(
