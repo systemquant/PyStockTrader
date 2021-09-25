@@ -353,9 +353,9 @@ class Total:
             plt.savefig(f"{graph_path}/C{strf_time('%Y%m%d')}_2.png")
             conn = sqlite3.connect(db_setting)
             cur = conn.cursor()
-            query = f"UPDATE coin SET 체결강도차이2 = {self.gap_ch}, 평균시간2 = {self.avg_time}, "\
-                    f"거래대금차이2 = {self.gap_sm}, 체결강도하한2 = {self.ch_low}, 누적거래대금하한2 = {self.dm_low}, "\
-                    f"등락율하한2 = {self.per_low}, 등락율상한2 = {self.per_high}, 청산수익률2 = {self.cs_per}"
+            query = f"UPDATE coin SET 체결강도차이2 = {self.gap_ch}, 평균시간 = {self.avg_time}, "\
+                    f"거래대금차이 = {self.gap_sm}, 체결강도하한 = {self.ch_low}, 누적거래대금하한 = {self.dm_low}, "\
+                    f"등락율하한 = {self.per_low}, 등락율상한 = {self.per_high}, 청산수익률 = {self.cs_per}"
             cur.execute(query)
             conn.commit()
             conn.close()
