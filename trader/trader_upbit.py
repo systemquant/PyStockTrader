@@ -178,7 +178,7 @@ class TraderUpbit(QThread):
                 self.UpdateTotaljango()
                 self.dict_time['거래정보'] = timedelta_sec(1)
 
-            """ 오전 9시가 되면 잔고청산 주문을 전송하고 9시 1분에 트레이더가 종료된다. """
+            """ coin_csan_time에 잔고청산 주문, coin_exit_time에 트레이더가 종료된다. """
             if int_time < coin_csan_time < int(strf_time('%H%M%S')):
                 self.JangoCheongsan()
             if int_time < coin_exit_time < int(strf_time('%H%M%S')):
@@ -350,7 +350,6 @@ class TraderUpbit(QThread):
         if not first:
             self.teleQ.put(f'손익 알림 - 총매수금액 {tbg}, 총매도금액 {tsg}, 수익 {tsig}, 손실 {tssg}, 수익금합계 {sg}')
 
-    # noinspection PyMethodMayBeStatic
     def GetPgSgSp(self, bg, cg):
         sfee = cg * self.dict_intg['업비트수수료']
         bfee = bg * self.dict_intg['업비트수수료']

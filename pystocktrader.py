@@ -320,7 +320,6 @@ class Window(QtWidgets.QMainWindow):
             queryQ.put([1, 'DELETE FROM upbit'])
             queryQ.put([1, 'DELETE FROM telegram'])
 
-    # noinspection PyMethodMayBeStatic
     def ButtonClicked_7(self, cmd):
         if '집계' in cmd:
             con = sqlite3.connect(db_tradelist)

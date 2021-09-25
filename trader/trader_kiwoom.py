@@ -333,8 +333,6 @@ class TraderKiwoom:
                            거래량구분='0', 거래대금구분='0', 발동방향='0', output='발동종목', next=0)
         self.windowQ.put([ui_num['S로그텍스트'], '시스템 명령 실행 알림 - VI발동해제 등록 완료'])
         self.windowQ.put([ui_num['S로그텍스트'], '시스템 명령 실행 알림 - 시스템 시작 완료'])
-        if self.dict_bool['알림소리']:
-            self.soundQ.put('주식 트레이더를 시작하였습니다.')
 
     def ConditionSearchStart(self):
         codes = self.SendCondition(sn_cond, self.dict_cond[0], 0, 1)
