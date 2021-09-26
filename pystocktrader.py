@@ -1242,7 +1242,7 @@ class Window(QtWidgets.QMainWindow):
         if bt and t in ['0', '']:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '백테스터 시작시간이 입력되지 않았습니다.\n')
         else:
-            df = pd.DataFrame([[kc, kt, cc, ct, bt, t]], columns=columns_sm, index=[0])
+            df = pd.DataFrame([[kc, kt, cc, ct, bt, int(t)]], columns=columns_sm, index=[0])
             queryQ.put([1, df, 'main', 'replace'])
             self.UpdateTexedit([ui_num['설정텍스트'], '시스템 기본 설정값 저장하기 완료'])
 
@@ -1268,7 +1268,7 @@ class Window(QtWidgets.QMainWindow):
         if access_key == '' or secret_key == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 설정값이 입력되지 않았습니다.\n')
         else:
-            df = pd.DataFrame([[access_key, secret_key]], columns=columns_sc, index=[0])
+            df = pd.DataFrame([[access_key, secret_key]], columns=columns_su, index=[0])
             queryQ.put([1, df, 'upbit', 'replace'])
             self.UpdateTexedit([ui_num['설정텍스트'], '업비트 계정 설정값 저장하기 완료'])
 
@@ -1285,22 +1285,30 @@ class Window(QtWidgets.QMainWindow):
     def ButtonClicked_28(self):
         me = 1 if self.sj_stock_checkBox_01.isChecked() else 0
         sd = 1 if self.sj_stock_checkBox_02.isChecked() else 0
-        gapch = self.sj_stock_lineEdit_01.text()
-        avgtime = self.sj_stock_lineEdit_02.text()
-        gapsm = self.sj_stock_lineEdit_03.text()
-        chlow = self.sj_stock_lineEdit_04.text()
-        dmlow = self.sj_stock_lineEdit_05.text()
-        plow = self.sj_stock_lineEdit_06.text()
-        phigh = self.sj_stock_lineEdit_07.text()
-        csper = self.sj_stock_lineEdit_08.text()
-        if gapch == '' or avgtime == '' or gapsm == '' or chlow == '' or \
-                dmlow == '' or plow == '' or phigh == '' or csper == '':
+        vu = self.sj_stock_lineEdit_01.text()
+        alg2 = self.sj_stock_lineEdit_02.text()
+        cl = self.sj_stock_lineEdit_03.text()
+        alg1 = self.sj_stock_lineEdit_04.text()
+        tr = self.sj_stock_lineEdit_05.text()
+        ss = self.sj_stock_lineEdit_06.text()
+        se = self.sj_stock_lineEdit_07.text()
+        gapch = self.sj_stock_lineEdit_08.text()
+        avgtime = self.sj_stock_lineEdit_09.text()
+        gapsm = self.sj_stock_lineEdit_10.text()
+        chlow = self.sj_stock_lineEdit_11.text()
+        dmlow = self.sj_stock_lineEdit_12.text()
+        plow = self.sj_stock_lineEdit_13.text()
+        phigh = self.sj_stock_lineEdit_14.text()
+        csper = self.sj_stock_lineEdit_15.text()
+        if vu == '' or alg2 == '' or cl == '' or alg1 == '' or tr == '' or ss == '' or se == '' or gapch == '' or \
+                avgtime == '' or gapsm == '' or chlow == '' or dmlow == '' or plow == '' or phigh == '' or csper == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
         else:
-            query = f"UPDATE stock SET 모의투자 = {me}, 알림소리 = {sd}, 체결강도차이 = {gapch},"\
-                    f"평균시간 = {avgtime}, 거래대금차이 = {gapsm}, 체결강도하한 = {chlow}, 누적거래대금하한 = {dmlow},"\
-                    f"등락율하한 = {plow}, 등락율상한 = {phigh}, 청산수익률 = {csper}"
-            queryQ.put([1, query])
+            df = pd.DataFrame(
+                [[me, sd, vu, alg2, cl, alg1, tr, ss, se, gapch, avgtime, gapsm, chlow, dmlow, plow, phigh, csper]],
+                columns=columns_ss, index=[0]
+            )
+            queryQ.put([1, df, 'stock', 'replace'])
             self.UpdateTexedit([ui_num['설정텍스트'], '주식 전략 설정값 저장하기 완료'])
 
     def ButtonClicked_29(self):
@@ -1318,10 +1326,11 @@ class Window(QtWidgets.QMainWindow):
                 dmlow == '' or plow == '' or phigh == '' or csper == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
         else:
-            query = f"UPDATE coin SET 모의투자 = {me}, 알림소리 = {sd}, 체결강도차이 = {gapch},"\
-                    f"평균시간 = {avgtime}, 거래대금차이 = {gapsm}, 체결강도하한 = {chlow}, 누적거래대금하한 = {dmlow},"\
-                    f"등락율하한 = {plow}, 등락율상한 = {phigh}, 청산수익률 = {csper}"
-            queryQ.put([1, query])
+            df = pd.DataFrame(
+                [[me, sd, gapch, avgtime, gapsm, chlow, dmlow, plow, phigh, csper]],
+                columns=columns_sc, index=[0]
+            )
+            queryQ.put([1, df, 'coin', 'replace'])
             self.UpdateTexedit([ui_num['설정텍스트'], '코인 전략 설정값 저장하기 완료'])
 
     def UpdateTexedit(self, data):
