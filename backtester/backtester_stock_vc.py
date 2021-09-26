@@ -463,7 +463,7 @@ if __name__ == "__main__":
                 ogin_var = num[i][0]
                 high_var = num[i][0]
                 if i == 6:
-                    if num[i][0] != int(sys.argv[13]):
+                    if num[i][0] != int(sys.argv[15]):
                         num[i][0] -= num[i][2]
                         num[i][1] = round(num[i][0] + num[i][2] * 2 - num[i][3], 1)
                     else:
