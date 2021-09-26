@@ -37,8 +37,8 @@ DICT_SET = {
     '인증서비밀번호2': df_k['인증서비밀번호2'][0] if len(df_k) > 0 and df_k['인증서비밀번호2'][0] != '' else None,
     '계좌비밀번호2': df_k['계좌비밀번호2'][0] if len(df_k) > 0 and df_k['계좌비밀번호2'][0] != '' else None,
 
-    'Access_key': df_u['Access_key'][0] if len(df_u) > 0 and df_k['Access_key'][0] != '' else None,
-    'Secret_key': df_u['Secret_key'][0] if len(df_u) > 0 and df_k['Secret_key'][0] != '' else None,
+    'Access_key': df_u['Access_key'][0] if len(df_u) > 0 and df_u['Access_key'][0] != '' else None,
+    'Secret_key': df_u['Secret_key'][0] if len(df_u) > 0 and df_u['Secret_key'][0] != '' else None,
 
     '텔레그램봇토큰': df_u['str_bot'][0] if len(df_t) > 0 and df_t['str_bot'][0] != '' else None,
     '텔레그램사용자아이디': df_u['int_id'][0] if len(df_t) > 0 and df_t['int_id'][0] != '' else None,
