@@ -4,8 +4,8 @@ import sqlite3
 import numpy as np
 import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from utility.setting import columns_gj1, ui_num, db_setting
 from utility.static import now, timedelta_sec, strf_time, timedelta_hour
-from utility.setting import columns_gj1, ui_num, db_setting, coin_csan_time
 
 
 class StrategyCoin:
@@ -49,7 +49,6 @@ class StrategyCoin:
         self.dict_intg['등락율상한'] = df['등락율상한'][0]
         self.dict_intg['청산수익률'] = df['청산수익률'][0]
         con.close()
-        int_time = int(strf_time('%H%M%S'))
         while True:
             data = self.stgQ.get()
             if len(data) == 2:
@@ -60,19 +59,13 @@ class StrategyCoin:
             elif len(data) == 5:
                 self.SellStrategy(data[0], data[1], data[2], data[3], data[4])
 
-            if now() > self.dict_time['관심종목'] and len(self.dict_gsjm) > 0:
-                self.windowQ.put([ui_num['관심종목'], self.dict_gsjm])
+            if now() > self.dict_time['관심종목']:
+                self.windowQ.put([ui_num['C관심종목'], self.dict_gsjm])
                 self.dict_time['관심종목'] = timedelta_sec(1)
-
-            if int_time < coin_csan_time - 1 <= int(strf_time('%H%M%S')):
-                break
-            int_time = int(strf_time('%H%M%S'))
-        sys.exit()
 
     def UpdateList(self, gubun, tickers):
         if '관심종목초기화' in gubun:
             self.dict_gsjm = {}
-            tn = 1 if int(strf_time('%H%M%S', timedelta_hour(-9))) <= 10000 else 2
             for ticker in tickers:
                 data = np.zeros((self.dict_intg['평균시간'] + 2, len(columns_gj1))).tolist()
                 df = pd.DataFrame(data, columns=columns_gj1)
@@ -109,8 +102,6 @@ class StrategyCoin:
         if self.dict_gsjm[ticker]['체결강도'][self.dict_intg['평균시간']] == 0:
             return
         if ticker in self.list_buy:
-            return
-        if injango:
             return
 
         # 전략 비공개

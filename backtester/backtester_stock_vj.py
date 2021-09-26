@@ -18,14 +18,16 @@ class BackTester1mStock:
         self.batting = num_[0]
         self.testperiod = num_[1]
         self.totaltime = num_[2]
-        self.gap_ch = num_[3]
-        self.avg_time = num_[4]
-        self.gap_sm = num_[5]
-        self.ch_low = num_[6]
-        self.dm_low = num_[7]
-        self.per_low = num_[8]
-        self.per_high = num_[9]
-        self.cs_per = num_[10]
+        self.starttime = num_[3]
+        self.endtime = num_[4]
+        self.gap_ch = num_[5]
+        self.avg_time = num_[6]
+        self.gap_sm = num_[7]
+        self.ch_low = num_[8]
+        self.dm_low = num_[9]
+        self.per_low = num_[10]
+        self.per_high = num_[11]
+        self.cs_per = num_[12]
 
         self.code = None
         self.df = None
@@ -71,18 +73,21 @@ class BackTester1mStock:
             self.totaleyun = 0
             self.totalper = 0.
             self.ccond = 0
+            lasth = len(self.df) - 1
             for h, index in enumerate(self.df.index):
                 if h != 0 and index[:8] != self.df.index[h - 1][:8]:
                     self.ccond = 0
-                if int(index[:8]) < int_daylimit or (not self.hold and int(index[8:]) >= 100000):
+                if int(index[:8]) < int_daylimit or \
+                        (not self.hold and (self.endtime <= int(index[8:]) or int(index[8:]) < self.starttime)):
                     continue
                 self.index = index
                 self.indexn = h
-                if not self.hold and int(index[8:]) < 100000 and self.BuyTerm():
+                self.ccond += 1
+                if not self.hold and self.starttime < int(index[8:]) < self.endtime and self.BuyTerm():
                     self.Buy()
-                elif self.hold and int(index[8:]) < 100000 and self.SellTerm():
+                elif self.hold and self.starttime < int(index[8:]) < self.endtime and self.SellTerm():
                     self.Sell()
-                elif self.hold and int(index[8:]) >= 100000 > int(self.df.index[h - 1][8:]):
+                elif self.hold and (h == lasth or int(index[8:]) >= self.endtime > int(self.df.index[h - 1][8:])):
                     self.Sell()
             self.Report(k + 1, tcount)
         conn.close()
@@ -237,14 +242,16 @@ class Total:
         self.batting = num_[0]
         self.testperiod = num_[1]
         self.totaltime = num_[2]
-        self.gap_ch = num_[3]
-        self.avg_time = num_[4]
-        self.gap_sm = num_[5]
-        self.ch_low = num_[6]
-        self.dm_low = num_[7]
-        self.per_low = num_[8]
-        self.per_high = num_[9]
-        self.cs_per = num_[10]
+        self.starttime = num_[3]
+        self.endtime = num_[4]
+        self.gap_ch = num_[5]
+        self.avg_time = num_[6]
+        self.gap_sm = num_[7]
+        self.ch_low = num_[8]
+        self.dm_low = num_[9]
+        self.per_low = num_[10]
+        self.per_high = num_[11]
+        self.cs_per = num_[12]
 
         self.Start()
 
@@ -326,15 +333,18 @@ if __name__ == "__main__":
     batting = int(sys.argv[1]) * 1000000
     testperiod = int(sys.argv[2])
     totaltime = int(sys.argv[3])
-    gap_ch = float(sys.argv[4])
-    avg_time = int(sys.argv[5])
-    gap_sm = int(sys.argv[6])
-    ch_low = float(sys.argv[7])
-    dm_low = int(sys.argv[8])
-    per_low = float(sys.argv[9])
-    per_high = float(sys.argv[10])
-    cs_per = float(sys.argv[11])
-    num = [batting, testperiod, totaltime, gap_ch, avg_time, gap_sm, ch_low, dm_low, per_low, per_high, cs_per]
+    starttime = int(sys.argv[4])
+    endtime = int(sys.argv[5])
+    gap_ch = float(sys.argv[6])
+    avg_time = int(sys.argv[7])
+    gap_sm = int(sys.argv[8])
+    ch_low = float(sys.argv[9])
+    dm_low = int(sys.argv[10])
+    per_low = float(sys.argv[11])
+    per_high = float(sys.argv[12])
+    cs_per = float(sys.argv[13])
+    num = [batting, testperiod, totaltime, starttime, endtime,
+           gap_ch, avg_time, gap_sm, ch_low, dm_low, per_low, per_high, cs_per]
 
     q = Queue()
     w = Process(target=Total, args=(q, last, num, df1))

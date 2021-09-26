@@ -5,8 +5,8 @@ import pandas as pd
 from PyQt5.QtCore import QThread
 from pyupbit import WebSocketManager
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from utility.setting import ui_num, coin_exit_time
-from utility.static import now, timedelta_sec, strf_time
+from utility.setting import ui_num
+from utility.static import now, timedelta_sec, timedelta_hour, strp_time
 
 
 class UpdaterTickUpbit:
@@ -21,7 +21,6 @@ class UpdaterTickUpbit:
         self.Start()
 
     def Start(self):
-        int_time = int(strf_time('%H%M%S'))
         while True:
             data = self.tickQ.get()
             if type(data) == list:
@@ -29,14 +28,10 @@ class UpdaterTickUpbit:
             else:
                 self.UpdateOrderbook(data)
 
-            if int_time < coin_exit_time <= int(strf_time('%H%M%S')):
-                break
-            int_time = int(strf_time('%H%M%S'))
-        sys.exit()
-
     def UpdateTickData(self, data_, receiv_time):
         ticker = data_['code']
         dt = data_['trade_date'] + data_['trade_time']
+        dt = timedelta_hour(9, strp_time('%Y%m%d%H%M%S', dt))
         if ticker not in self.dict_orderbook.keys():
             return
 
@@ -47,6 +42,8 @@ class UpdaterTickUpbit:
             '저가': data_['low_price'],
             '등락율': round(data_['signed_change_rate'] * 100, 2),
             '누적거래대금': data_['acc_trade_price'],
+            '매수수량': data_['매수수량'],
+            '매도수량': data_['매도수량'],
             '누적매수량': data_['acc_bid_volume'],
             '누적매도량': data_['acc_ask_volume']
         }
@@ -89,31 +86,38 @@ class WebsTicker(QThread):
         self.tickers2 = [ticker for i, ticker in enumerate(self.tickers) if i % 2 == 1]
 
     def run(self):
-        int_time = int(strf_time('%H%M%S'))
-        dict_time = {}
-        int_tick = 0
+        dict_askbid = {}
         websQ_ticker = WebSocketManager('ticker', self.tickers)
-
         while True:
             data = websQ_ticker.get()
-            int_tick += 1
             ticker = data['code']
             t = data['trade_time']
+            v = data['trade_volume']
+            ask_bid = data['ask_bid']
+
             try:
-                pret = dict_time[ticker]
+                pret = dict_askbid[ticker][0]
+                bid_volumns = dict_askbid[ticker][1]
+                ask_volumns = dict_askbid[ticker][2]
             except KeyError:
                 pret = None
-            if pret is None or t != pret:
-                dict_time[ticker] = t
+                bid_volumns = 0
+                ask_volumns = 0
+
+            if ask_bid == 'BID':
+                dict_askbid[ticker] = [t, bid_volumns + float(v), ask_volumns]
+            else:
+                dict_askbid[ticker] = [t, bid_volumns, ask_volumns + float(v)]
+
+            if t != pret:
+                data['매수수량'] = dict_askbid[ticker][1]
+                data['매도수량'] = dict_askbid[ticker][2]
+                dict_askbid[ticker] = [t, 0, 0]
+
                 if ticker in self.tickers1:
                     self.tick9Q.put([data, now()])
                 elif ticker in self.tickers2:
                     self.tick10Q.put([data, now()])
-
-            if int_time < coin_exit_time + 100 <= int(strf_time('%H%M%S')):
-                break
-            int_time = int(strf_time('%H%M%S'))
-        sys.exit()
 
 
 class WebsOrderbook(QThread):
@@ -127,10 +131,8 @@ class WebsOrderbook(QThread):
         self.tickers2 = [ticker for i, ticker in enumerate(self.tickers) if i % 2 == 1]
 
     def run(self):
-        int_time = int(strf_time('%H%M%S'))
         int_tick = 0
         websQ_order = WebSocketManager('orderbook', self.tickers)
-
         while True:
             data = websQ_order.get()
             int_tick += 1
@@ -139,13 +141,3 @@ class WebsOrderbook(QThread):
                 self.tick9Q.put(data)
             elif ticker in self.tickers2:
                 self.tick10Q.put(data)
-
-            if int_time < coin_exit_time <= int(strf_time('%H%M%S')):
-                break
-            int_time = int(strf_time('%H%M%S'))
-
-        self.windowQ.put([ui_num['C로그텍스트'], '콜렉터를 종료합니다.'])
-        if self.dict_bool['알림소리']:
-            self.soundQ.put('코인 콜렉터를 종료합니다.')
-        self.teleQ.put('코인 콜렉터를 종료하였습니니다.')
-        sys.exit()

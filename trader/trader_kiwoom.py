@@ -92,20 +92,20 @@ class TraderKiwoom:
         con.close()
 
         con = sqlite3.connect(db_tradelist)
-        df = pd.read_sql(f"SELECT * FROM chegeollist WHERE 체결시간 LIKE '{self.dict_strg['당일날짜']}%'", con)
+        df = pd.read_sql(f"SELECT * FROM s_chegeollist WHERE 체결시간 LIKE '{self.dict_strg['당일날짜']}%'", con)
         self.dict_df['체결목록'] = df.set_index('index').sort_values(by=['체결시간'], ascending=False)
 
-        df = pd.read_sql(f"SELECT * FROM tradelist WHERE 체결시간 LIKE '{self.dict_strg['당일날짜']}%'", con)
+        df = pd.read_sql(f"SELECT * FROM s_tradelist WHERE 체결시간 LIKE '{self.dict_strg['당일날짜']}%'", con)
         self.dict_df['거래목록'] = df.set_index('index').sort_values(by=['체결시간'], ascending=False)
 
-        df = pd.read_sql(f'SELECT * FROM jangolist', con)
+        df = pd.read_sql(f'SELECT * FROM s_jangolist', con)
         self.dict_df['잔고목록'] = df.set_index('index').sort_values(by=['매입금액'], ascending=False)
         con.close()
 
         if len(self.dict_df['체결목록']) > 0:
-            self.windowQ.put([ui_num['체결목록'], self.dict_df['체결목록']])
+            self.windowQ.put([ui_num['S체결목록'], self.dict_df['체결목록']])
         if len(self.dict_df['거래목록']) > 0:
-            self.windowQ.put([ui_num['거래목록'], self.dict_df['거래목록']])
+            self.windowQ.put([ui_num['C거래목록'], self.dict_df['거래목록']])
 
         self.windowQ.put([ui_num['S로그텍스트'], '시스템 명령 실행 알림 - 데이터베이스 정보 불러오기 완료'])
 
@@ -393,8 +393,8 @@ class TraderKiwoom:
         else:
             self.dict_df['잔고평가'].at[self.dict_strg['당일날짜']] = \
                 self.dict_intg['예수금'], self.dict_intg['예수금'], 0, 0.0, 0, 0, 0
-        self.windowQ.put([ui_num['잔고목록'], self.dict_df['잔고목록']])
-        self.windowQ.put([ui_num['잔고평가'], self.dict_df['잔고평가']])
+        self.windowQ.put([ui_num['S잔고목록'], self.dict_df['잔고목록']])
+        self.windowQ.put([ui_num['S잔고평가'], self.dict_df['잔고평가']])
 
     def OnEventConnect(self, err_code):
         if err_code == 0:
@@ -689,7 +689,7 @@ class TraderKiwoom:
         columns = ['매입가', '현재가', '평가손익', '매입금액']
         self.dict_df['잔고목록'][columns] = self.dict_df['잔고목록'][columns].astype(int)
         self.dict_df['잔고목록'].sort_values(by=['매입금액'], inplace=True)
-        self.queryQ.put([2, self.dict_df['잔고목록'], 'jangolist', 'replace'])
+        self.queryQ.put([2, self.dict_df['잔고목록'], 's_jangolist', 'replace'])
         if self.dict_bool['알림소리']:
             self.soundQ.put(f'{name} {oc}주를 {og}하였습니다')
 
@@ -712,10 +712,10 @@ class TraderKiwoom:
 
         self.dict_df['거래목록'].at[on] = name, bg, pg, oc, sp, sg, d
         self.dict_df['거래목록'].sort_values(by=['체결시간'], ascending=False, inplace=True)
-        self.windowQ.put([ui_num['거래목록'], self.dict_df['거래목록']])
+        self.windowQ.put([ui_num['S거래목록'], self.dict_df['거래목록']])
 
         df = pd.DataFrame([[name, bg, pg, oc, sp, sg, d]], columns=columns_td, index=[on])
-        self.queryQ.put([2, df, 'tradelist', 'append'])
+        self.queryQ.put([2, df, 's_tradelist', 'append'])
         self.UpdateTotaltradelist()
 
     def UpdateTotaltradelist(self, first=False):
@@ -728,7 +728,7 @@ class TraderKiwoom:
         tdct = len(self.dict_df['거래목록'])
         self.dict_df['실현손익'] = pd.DataFrame([[tdct, tbg, tsg, tsig, tssg, sp, sg]],
                                             columns=columns_tt, index=[self.dict_strg['당일날짜']])
-        self.windowQ.put([ui_num['실현손익'], self.dict_df['실현손익']])
+        self.windowQ.put([ui_num['S실현손익'], self.dict_df['실현손익']])
 
         if not first:
             self.teleQ.put(
@@ -750,7 +750,7 @@ class TraderKiwoom:
         else:
             self.dict_df['체결목록'].at[on] = name, og, oc, omc, op, cp, dt
         self.dict_df['체결목록'].sort_values(by=['체결시간'], ascending=False, inplace=True)
-        self.windowQ.put([ui_num['체결목록'], self.dict_df['체결목록']])
+        self.windowQ.put([ui_num['S체결목록'], self.dict_df['체결목록']])
 
         if omc == 0:
             df = pd.DataFrame([[name, og, oc, omc, op, cp, dt]], columns=columns_cj, index=[on])

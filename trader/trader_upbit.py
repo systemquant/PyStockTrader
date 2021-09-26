@@ -1,9 +1,7 @@
 import os
 import sys
 import time
-import sqlite3
 import pyupbit
-import pandas as pd
 from PyQt5.QtCore import QThread
 from pyupbit import WebSocketManager
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
@@ -61,18 +59,18 @@ class TraderUpbit(QThread):
         체결과 거래목록은 바로 갱신하고 잔고목록은 예수금을 불러온 이후 갱신한다.
         """
         con = sqlite3.connect(db_tradelist)
-        df = pd.read_sql(f"SELECT * FROM chegeollist WHERE 체결시간 LIKE '{self.str_today}%'", con)
+        df = pd.read_sql(f"SELECT * FROM c_chegeollist WHERE 체결시간 LIKE '{self.str_today}%'", con)
         self.df_cj = df.set_index('index').sort_values(by=['체결시간'], ascending=False)
-        df = pd.read_sql(f'SELECT * FROM jangolist', con)
+        df = pd.read_sql(f'SELECT * FROM c_jangolist', con)
         self.df_jg = df.set_index('index').sort_values(by=['매입금액'], ascending=False)
-        df = pd.read_sql(f"SELECT * FROM tradelist WHERE 체결시간 LIKE '{self.str_today}%'", con)
+        df = pd.read_sql(f"SELECT * FROM c_tradelist WHERE 체결시간 LIKE '{self.str_today}%'", con)
         self.df_td = df.set_index('index').sort_values(by=['체결시간'], ascending=False)
         con.close()
 
         if len(self.df_cj) > 0:
-            self.windowQ.put([ui_num['체결목록'], self.df_cj])
+            self.windowQ.put([ui_num['C체결목록'], self.df_cj])
         if len(self.df_td) > 0:
-            self.windowQ.put([ui_num['거래목록'], self.df_td])
+            self.windowQ.put([ui_num['C거래목록'], self.df_td])
         self.windowQ.put([ui_num['C로그텍스트'], '시스템 명령 실행 알림 - 데이터베이스 불러오기 완료'])
 
     def GetKey(self):
@@ -137,32 +135,31 @@ class TraderUpbit(QThread):
             ticker = data['code']
             t = data['trade_time']
 
-            if int_time < coin_exit_time or coin_trad_time < int_time:
-                try:
-                    last_jcct = self.dict_jcdt[ticker]
-                except KeyError:
-                    last_jcct = None
+            try:
+                last_jcct = self.dict_jcdt[ticker]
+            except KeyError:
+                last_jcct = None
 
-                if last_jcct is None or t != last_jcct:
-                    self.dict_jcdt[ticker] = t
+            if last_jcct is None or t != last_jcct:
+                self.dict_jcdt[ticker] = t
 
-                    c = data['trade_price']
-                    h = data['high_price']
-                    low = data['low_price']
-                    per = round(data['signed_change_rate'] * 100, 2)
-                    dm = data['acc_trade_price']
-                    bid = data['acc_bid_volume']
-                    ask = data['acc_ask_volume']
+                c = data['trade_price']
+                h = data['high_price']
+                low = data['low_price']
+                per = round(data['signed_change_rate'] * 100, 2)
+                dm = data['acc_trade_price']
+                bid = data['acc_bid_volume']
+                ask = data['acc_ask_volume']
 
-                    uuidnone = self.buy_uuid is None
-                    injango = ticker in self.df_jg.index
-                    data = [ticker, c, h, low, per, dm, bid, ask, t, uuidnone, injango, self.dict_intg['종목당투자금']]
-                    self.cstgQ.put(data)
+                uuidnone = self.buy_uuid is None
+                injango = ticker in self.df_jg.index
+                data = [ticker, c, h, low, per, dm, bid, ask, t, uuidnone, injango, self.dict_intg['종목당투자금']]
+                self.cstgQ.put(data)
 
-                    """ 잔고목록 갱신 및 매도조건 확인 """
-                    if injango:
-                        ch = round(bid / ask * 100, 2)
-                        self.UpdateJango(ticker, c, ch)
+                """ 잔고목록 갱신 및 매도조건 확인 """
+                if injango:
+                    ch = round(bid / ask * 100, 2)
+                    self.UpdateJango(ticker, c, ch)
 
             """ 주문의 체결확인은 1초마다 반복한다. """
             if not self.dict_bool['모의투자']:
@@ -179,19 +176,10 @@ class TraderUpbit(QThread):
                 self.dict_time['거래정보'] = timedelta_sec(1)
 
             """ coin_csan_time에 잔고청산 주문, coin_exit_time에 트레이더가 종료된다. """
-            if int_time < coin_csan_time < int(strf_time('%H%M%S')):
-                self.JangoCheongsan()
-            if int_time < coin_exit_time < int(strf_time('%H%M%S')):
-                self.queryQ.put([2, self.df_tt, 'totaltradelist', 'append'])
-                break
+            if int(strf_time('%H%M%S')) >= 90000 > int_time:
+                self.queryQ.put([2, self.df_tt, 'c_totaltradelist', 'append'])
 
             int_time = int(strf_time('%H%M%S'))
-
-        self.windowQ.put([ui_num['C로그텍스트'], '시스템 명령 실행 알림 - 트레이더 종료합니다.'])
-        if self.dict_bool['알림소리']:
-            self.soundQ.put('코인 트레이더를 종료합니다.')
-        self.teleQ.put('코인 트레이더를 종료하였습니니다.')
-        sys.exit()
 
     """
     모의투자 시 실제 매도수 주문을 전송하지 않고 바로 체결목록, 잔고목록 등을 갱신한다.
@@ -293,21 +281,21 @@ class TraderUpbit(QThread):
         order_gubun = '매수' if not cancle else '시드부족'
         self.df_cj.at[dt] = ticker, order_gubun, cc, 0, cp, cp, dt
         self.df_cj.sort_values(by='체결시간', ascending=False, inplace=True)
-        self.windowQ.put([ui_num['체결목록'], self.df_cj])
+        self.windowQ.put([ui_num['C체결목록'], self.df_cj])
         if not cancle:
             bg = cp * cc
             pg, sg, sp = self.GetPgSgSp(bg, bg)
             self.dict_intg['예수금'] -= bg
             self.df_jg.at[ticker] = ticker, cp, cp, sp, sg, bg, pg, cc
             self.df_jg.sort_values(by=['매입금액'], ascending=False, inplace=True)
-            self.queryQ.put([2, self.df_jg, 'jangolist', 'replace'])
+            self.queryQ.put([2, self.df_jg, 'c_jangolist', 'replace'])
             text = f'매매 시스템 체결 알림 - {ticker} {cc}코인 매수'
             self.windowQ.put([ui_num['C로그텍스트'], text])
             if self.dict_bool['알림소리']:
                 self.soundQ.put(f'{ticker} {cc}코인을 매수하였습니다.')
             self.teleQ.put(f'매수 알림 - {ticker} {cp} {cc}')
         df = pd.DataFrame([[ticker, order_gubun, cc, 0, cp, cp, dt]], columns=columns_cj, index=[dt])
-        self.queryQ.put([2, df, 'chegeollist', 'append'])
+        self.queryQ.put([2, df, 'c_chegeollist', 'append'])
 
     def UpdateSell(self, ticker, cp, cc):
         dt = strf_time('%Y%m%d%H%M%S%f')
@@ -321,19 +309,19 @@ class TraderUpbit(QThread):
         self.df_td.at[dt] = ticker, bg, pg, cc, sp, sg, dt
         self.df_td.sort_values(by=['체결시간'], ascending=False, inplace=True)
 
-        self.windowQ.put([ui_num['체결목록'], self.df_cj])
-        self.windowQ.put([ui_num['거래목록'], self.df_td])
+        self.windowQ.put([ui_num['C체결목록'], self.df_cj])
+        self.windowQ.put([ui_num['C거래목록'], self.df_td])
 
         text = f'매매 시스템 체결 알림 - {ticker} {bp}코인 매도'
         self.windowQ.put([ui_num['C로그텍스트'], text])
         if self.dict_bool['알림소리']:
             self.soundQ.put(f'{ticker} {cc}코인을 매도하였습니다.')
 
-        self.queryQ.put([2, self.df_jg, 'jangolist', 'replace'])
+        self.queryQ.put([2, self.df_jg, 'c_jangolist', 'replace'])
         df = pd.DataFrame([[ticker, '매도', cc, 0, cp, cp, dt]], columns=columns_cj, index=[dt])
-        self.queryQ.put([2, df, 'chegeollist', 'append'])
+        self.queryQ.put([2, df, 'c_chegeollist', 'append'])
         df = pd.DataFrame([[ticker, bg, pg, cc, sp, sg, dt]], columns=columns_td, index=[dt])
-        self.queryQ.put([2, df, 'tradelist', 'append'])
+        self.queryQ.put([2, df, 'c_tradelist', 'append'])
         self.teleQ.put(f'매도 알림 - {ticker} {cp} {cc}')
         self.UpdateTotaltradelist()
 
@@ -346,7 +334,7 @@ class TraderUpbit(QThread):
         sp = round(sg / tbg * 100, 2)
         tdct = len(self.df_td)
         self.df_tt = pd.DataFrame([[tdct, tbg, tsg, tsig, tssg, sp, sg]], columns=columns_tt, index=[self.str_today])
-        self.windowQ.put([ui_num['실현손익'], self.df_tt])
+        self.windowQ.put([ui_num['C실현손익'], self.df_tt])
         if not first:
             self.teleQ.put(f'손익 알림 - 총매수금액 {tbg}, 총매도금액 {tsg}, 수익 {tsig}, 손실 {tssg}, 수익금합계 {sg}')
 
@@ -369,5 +357,5 @@ class TraderUpbit(QThread):
             self.df_tj.at[self.str_today] = ttg, self.dict_intg['예수금'], bct, tsp, tsg, tbg, tpg
         else:
             self.df_tj.at[self.str_today] = self.dict_intg['예수금'], self.dict_intg['예수금'], 0, 0.0, 0, 0, 0
-        self.windowQ.put([ui_num['잔고목록'], self.df_jg])
-        self.windowQ.put([ui_num['잔고평가'], self.df_tj])
+        self.windowQ.put([ui_num['C잔고목록'], self.df_jg])
+        self.windowQ.put([ui_num['C잔고평가'], self.df_tj])

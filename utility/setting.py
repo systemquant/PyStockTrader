@@ -1,3 +1,5 @@
+import sqlite3
+import pandas as pd
 from PyQt5.QtGui import QFont, QColor
 
 openapi_path = 'D:/OpenAPI'
@@ -13,21 +15,19 @@ qfont = QFont()
 qfont.setFamily('나눔고딕')
 qfont.setPixelSize(12)
 
-stock_vjup_time = 84500
-stock_alg2_time = 84700
-stock_coll_time = 84800
-stock_alg1_time = 84900
-stock_trad_time = 85000
-stock_init_time = 90000
-stock_csan_time = 95900
-stock_exit_time = 100000
+conn = sqlite3.connect(db_setting)
+df_s = pd.read_sql('SELECT * FROM stock', conn)
+df_s = df_s.set_index('index')
+conn.close()
 
-coin_coll_time = 95900
-coin_trad_time = 100000
-coin_csan_time = 55800
-coin_exit_time = 55900
-
-backtest_time = 60000
+stock_vjup_time = df_s['버전업'][0]
+stock_alg2_time = df_s['자동로그인2'][0]
+stock_coll_time = df_s['콜렉터'][0]
+stock_alg1_time = df_s['자동로그인1'][0]
+stock_trad_time = df_s['트레이더'][0]
+stock_init_time = df_s['전략시작'][0]
+stock_exit_time = df_s['전략종료'][0]
+stock_csan_time = stock_exit_time - 100
 
 sn_brrq = 1000
 sn_brrd = 1001
@@ -75,8 +75,10 @@ style_bc_md = 'background-color: rgb(40, 40, 45);'
 style_bc_dk = 'background-color: rgb(30, 30, 35);'
 
 ui_num = {'설정텍스트': 0, 'S단순텍스트': 1, 'S로그텍스트': 2, 'S종목명딕셔너리': 3, 'C단순텍스트': 4, 'C로그텍스트': 5,
-          '실현손익': 11, '거래목록': 12, '잔고평가': 13, '잔고목록': 14, '체결목록': 15,
-          '당일합계': 16, '당일상세': 17, '누적합계': 18, '누적상세': 19, '관심종목': 20}
+          'S실현손익': 11, 'S거래목록': 12, 'S잔고평가': 13, 'S잔고목록': 14, 'S체결목록': 15,
+          'S당일합계': 16, 'S당일상세': 17, 'S누적합계': 18, 'S누적상세': 19, 'S관심종목': 20,
+          'C실현손익': 21, 'C거래목록': 22, 'C잔고평가': 23, 'C잔고목록': 24, 'C체결목록': 25,
+          'C당일합계': 26, 'C당일상세': 27, 'C누적합계': 28, 'C누적상세': 29, 'C관심종목': 30}
 
 columns_tt = ['거래횟수', '총매수금액', '총매도금액', '총수익금액', '총손실금액', '수익률', '수익금합계']
 columns_td = ['종목명', '매수금액', '매도금액', '주문수량', '수익률', '수익금', '체결시간']
@@ -92,9 +94,7 @@ columns_dd = ['체결시간', '종목명', '매수금액', '매도금액', '주�
 columns_nt = ['기간', '누적매수금액', '누적매도금액', '누적수익금액', '누적손실금액', '수익률', '누적수익금']
 columns_nd = ['일자', '총매수금액', '총매도금액', '총수익금액', '총손실금액', '수익률', '수익금합계']
 
-columns_sm = ['키움콜렉터', '키움트레이더', '업비트콜렉터', '업비트트레이더']
+columns_sm = ['키움콜렉터', '키움트레이더', '업비트콜렉터', '업비트트레이더', '백테스터', '시작시간']
 columns_sk = ['아이디1', '비밀번호1', '인증서비밀번호1', '계좌비밀번호1', '아이디2', '비밀번호2', '인증서비밀번호2', '계좌비밀번호2']
 columns_sc = ['Access_key', 'Secret_key']
-columns_ss = ['모의투자', '알림소리', '체결강도차이', '평균시간', '거래대금차이', '체결강도하한',
-              '누적거래대금하한', '등락율하한', '등락율상한', '청산수익률']
 columns_st = ['str_bot', 'int_id']

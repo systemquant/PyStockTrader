@@ -59,7 +59,7 @@ class StrategyStock:
                 self.SellStrategy(data[0], data[1], data[2], data[3], data[4], data[5], data[6])
 
             if now() > self.dict_time['관심종목']:
-                self.windowQ.put([ui_num['관심종목'], self.dict_gsjm])
+                self.windowQ.put([ui_num['S관심종목'], self.dict_gsjm])
                 self.dict_time['관심종목'] = timedelta_sec(1)
 
             if int_time < stock_csan_time - 1 <= int(strf_time('%H%M%S')):
@@ -75,7 +75,7 @@ class StrategyStock:
                 df['체결시간'] = '090000'
                 self.dict_gsjm[code] = df.copy()
             if gubun == '조건진입마지막':
-                self.windowQ.put([ui_num['관심종목'], self.dict_gsjm])
+                self.windowQ.put([ui_num['S관심종목'], self.dict_gsjm])
         elif gubun == '조건이탈':
             if code in self.dict_gsjm.keys():
                 del self.dict_gsjm[code]
@@ -106,8 +106,6 @@ class StrategyStock:
         if self.dict_gsjm[code]['체결강도'][self.dict_intg['평균시간']] == 0:
             return
         if code in self.list_buy:
-            return
-        if injango:
             return
 
         # 전략 비공개

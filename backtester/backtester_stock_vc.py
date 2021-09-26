@@ -16,30 +16,34 @@ class BackTester1Stock:
         self.df_mt = df_mt_
         self.high = high
 
-        if type(num_[3]) == list:
+        if type(num_[5]) == list:
             self.batting = num_[0]
             self.testperiod = num_[1]
             self.totaltime = num_[2]
-            self.gap_ch = num_[3][0]
-            self.avg_time = num_[4][0]
-            self.gap_sm = num_[5][0]
-            self.ch_low = num_[6][0]
-            self.dm_low = num_[7][0]
-            self.per_low = num_[8][0]
-            self.per_high = num_[9][0]
-            self.cs_per = num_[10][0]
+            self.starttime = num_[3]
+            self.endtime = num_[4]
+            self.gap_ch = num_[5][0]
+            self.avg_time = num_[6][0]
+            self.gap_sm = num_[7][0]
+            self.ch_low = num_[8][0]
+            self.dm_low = num_[9][0]
+            self.per_low = num_[10][0]
+            self.per_high = num_[11][0]
+            self.cs_per = num_[12][0]
         else:
             self.batting = num_[0]
             self.testperiod = num_[1]
             self.totaltime = num_[2]
-            self.gap_ch = num_[3]
-            self.avg_time = num_[4]
-            self.gap_sm = num_[5]
-            self.ch_low = num_[6]
-            self.dm_low = num_[7]
-            self.per_low = num_[8]
-            self.per_high = num_[9]
-            self.cs_per = num_[10]
+            self.starttime = num_[3]
+            self.endtime = num_[4]
+            self.gap_ch = num_[5]
+            self.avg_time = num_[6]
+            self.gap_sm = num_[7]
+            self.ch_low = num_[8]
+            self.dm_low = num_[9]
+            self.per_low = num_[10]
+            self.per_high = num_[11]
+            self.cs_per = num_[12]
 
         self.code = None
         self.df = None
@@ -85,18 +89,21 @@ class BackTester1Stock:
             self.totaleyun = 0
             self.totalper = 0.
             self.ccond = 0
+            lasth = len(self.df) - 1
             for h, index in enumerate(self.df.index):
                 if h != 0 and index[:8] != self.df.index[h - 1][:8]:
                     self.ccond = 0
-                if int(index[:8]) < int_daylimit or (not self.hold and int(index[8:]) >= 100000):
+                if int(index[:8]) < int_daylimit or \
+                        (not self.hold and (self.endtime <= int(index[8:]) or int(index[8:]) < self.starttime)):
                     continue
                 self.index = index
                 self.indexn = h
-                if not self.hold and int(index[8:]) < 100000 and self.BuyTerm():
+                self.ccond += 1
+                if not self.hold and self.starttime < int(index[8:]) < self.endtime and self.BuyTerm():
                     self.Buy()
-                elif self.hold and int(index[8:]) < 100000 and self.SellTerm():
+                elif self.hold and self.starttime < int(index[8:]) < self.endtime and self.SellTerm():
                     self.Sell()
-                elif self.hold and int(index[8:]) >= 100000 > int(self.df.index[h - 1][8:]):
+                elif self.hold and (h == lasth or int(index[8:]) >= self.endtime > int(self.df.index[h - 1][8:])):
                     self.Sell()
             self.Report(k + 1, tcount)
         conn.close()
@@ -249,30 +256,34 @@ class Total:
         self.last = last_
         self.name = df1_
 
-        if type(num_[3]) == list:
+        if type(num_[5]) == list:
             self.batting = num_[0]
             self.testperiod = num_[1]
             self.totaltime = num_[2]
-            self.gap_ch = num_[3][0]
-            self.avg_time = num_[4][0]
-            self.gap_sm = num_[5][0]
-            self.ch_low = num_[6][0]
-            self.dm_low = num_[7][0]
-            self.per_low = num_[8][0]
-            self.per_high = num_[9][0]
-            self.cs_per = num_[10][0]
+            self.starttime = num_[3]
+            self.endtime = num_[4]
+            self.gap_ch = num_[5][0]
+            self.avg_time = num_[6][0]
+            self.gap_sm = num_[7][0]
+            self.ch_low = num_[8][0]
+            self.dm_low = num_[9][0]
+            self.per_low = num_[10][0]
+            self.per_high = num_[11][0]
+            self.cs_per = num_[12][0]
         else:
             self.batting = num_[0]
             self.testperiod = num_[1]
             self.totaltime = num_[2]
-            self.gap_ch = num_[3]
-            self.avg_time = num_[4]
-            self.gap_sm = num_[5]
-            self.ch_low = num_[6]
-            self.dm_low = num_[7]
-            self.per_low = num_[8]
-            self.per_high = num_[9]
-            self.cs_per = num_[10]
+            self.starttime = num_[3]
+            self.endtime = num_[4]
+            self.gap_ch = num_[5]
+            self.avg_time = num_[6]
+            self.gap_sm = num_[7]
+            self.ch_low = num_[8]
+            self.dm_low = num_[9]
+            self.per_low = num_[10]
+            self.per_high = num_[11]
+            self.cs_per = num_[12]
 
         self.Start()
 
@@ -372,17 +383,20 @@ if __name__ == "__main__":
     batting = int(sys.argv[1]) * 1000000
     testperiod = int(sys.argv[2])
     totaltime = int(sys.argv[3])
-    gap_chs = [float(sys.argv[4]), float(sys.argv[5]), float(sys.argv[6]),
-               float(sys.argv[7]), float(sys.argv[8]), float(sys.argv[9]), float(sys.argv[10])]
-    avg_times = [int(sys.argv[13]), int(sys.argv[14]), int(sys.argv[15]),
-                 int(sys.argv[16]), int(sys.argv[17]), int(sys.argv[18])]
+    starttime = int(sys.argv[4])
+    endtime = int(sys.argv[5])
+    gap_chs = [float(sys.argv[6]), float(sys.argv[7]), float(sys.argv[8]),
+               float(sys.argv[9]), float(sys.argv[10]), float(sys.argv[11]), float(sys.argv[12])]
+    avg_times = [int(sys.argv[15]), int(sys.argv[16]), int(sys.argv[17]),
+                 int(sys.argv[18]), int(sys.argv[19]), int(sys.argv[20])]
     htsp = -1000
     high_var = []
 
     for gap_ch in gap_chs:
         for avg_time in avg_times:
-            num = [batting, testperiod, totaltime, gap_ch, avg_time, int(sys.argv[21]), float(sys.argv[25]),
-                   int(sys.argv[29]), float(sys.argv[33]), float(sys.argv[37]), float(sys.argv[41])]
+            num = [batting, testperiod, totaltime, starttime, endtime, gap_ch, avg_time,
+                   int(sys.argv[23]), float(sys.argv[27]), int(sys.argv[31]), float(sys.argv[35]),
+                   float(sys.argv[39]), float(sys.argv[43])]
             w = Process(target=Total, args=(q, last, num, df1))
             w.start()
             procs = []
@@ -401,26 +415,27 @@ if __name__ == "__main__":
                 high_var = num
                 print(f' 최고수익률 갱신 {htsp}%')
 
-    gap_ch = [high_var[3] - float(sys.argv[11]) * 9, high_var[3] + float(sys.argv[11]) * 9,
-              float(sys.argv[11]), float(sys.argv[12])]
-    avg_time = [high_var[4], high_var[4], int(sys.argv[19]), int(sys.argv[20])]
-    gap_sm = [int(sys.argv[21]), int(sys.argv[22]), int(sys.argv[23]), int(sys.argv[24])]
-    ch_low = [float(sys.argv[25]), float(sys.argv[26]), float(sys.argv[27]), float(sys.argv[28])]
-    dm_low = [int(sys.argv[29]), int(sys.argv[30]), int(sys.argv[31]), int(sys.argv[32])]
-    per_low = [float(sys.argv[33]), float(sys.argv[34]), float(sys.argv[35]), float(sys.argv[36])]
-    per_high = [float(sys.argv[37]), float(sys.argv[38]), float(sys.argv[39]), float(sys.argv[40])]
-    cs_per = [float(sys.argv[41]), float(sys.argv[42]), float(sys.argv[43]), float(sys.argv[44])]
-    num = [batting, testperiod, totaltime, gap_ch, avg_time, gap_sm, ch_low, dm_low, per_low, per_high, cs_per]
+    gap_ch = [high_var[5] - float(sys.argv[13]) * 9, high_var[5] + float(sys.argv[13]) * 9,
+              float(sys.argv[13]), float(sys.argv[14])]
+    avg_time = [high_var[6], high_var[6], int(sys.argv[21]), int(sys.argv[22])]
+    gap_sm = [int(sys.argv[23]), int(sys.argv[24]), int(sys.argv[25]), int(sys.argv[26])]
+    ch_low = [float(sys.argv[27]), float(sys.argv[28]), float(sys.argv[29]), float(sys.argv[30])]
+    dm_low = [int(sys.argv[31]), int(sys.argv[32]), int(sys.argv[33]), int(sys.argv[34])]
+    per_low = [float(sys.argv[35]), float(sys.argv[36]), float(sys.argv[37]), float(sys.argv[38])]
+    per_high = [float(sys.argv[39]), float(sys.argv[40]), float(sys.argv[41]), float(sys.argv[42])]
+    cs_per = [float(sys.argv[43]), float(sys.argv[44]), float(sys.argv[45]), float(sys.argv[46])]
+    num = [batting, testperiod, totaltime, starttime, endtime,
+           gap_ch, avg_time, gap_sm, ch_low, dm_low, per_low, per_high, cs_per]
 
-    ogin_var = high_var[3]
-    high_var = high_var[3]
+    ogin_var = high_var[5]
+    high_var = high_var[5]
 
-    i = 3
+    i = 5
     while True:
         w = Process(target=Total, args=(q, last, num, df1))
         w.start()
         procs = []
-        workcount = int(last / int(sys.argv[45])) + 1
+        workcount = int(last / int(sys.argv[47])) + 1
         for j in range(0, last, workcount):
             code_list = table_list[j:j + workcount]
             p = Process(target=BackTester1Stock, args=(q, code_list, num, df3, False))
@@ -447,7 +462,7 @@ if __name__ == "__main__":
                 i += 1
                 ogin_var = num[i][0]
                 high_var = num[i][0]
-                if i == 4:
+                if i == 6:
                     if num[i][0] != int(sys.argv[13]):
                         num[i][0] -= num[i][2]
                         num[i][1] = round(num[i][0] + num[i][2] * 2 - num[i][3], 1)
@@ -461,7 +476,7 @@ if __name__ == "__main__":
     w = Process(target=Total, args=(q, last, num, df1))
     w.start()
     procs = []
-    workcount = int(last / float(sys.argv[45])) + 1
+    workcount = int(last / float(sys.argv[47])) + 1
     for j in range(0, last, workcount):
         db_list = table_list[j:j + workcount]
         p = Process(target=BackTester1Stock, args=(q, db_list, num, df3, True))

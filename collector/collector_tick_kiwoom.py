@@ -1,11 +1,9 @@
 import os
 import sys
 import time
-import sqlite3
 import warnings
 import pythoncom
 import numpy as np
-import pandas as pd
 from PyQt5 import QtWidgets
 from PyQt5.QAxContainer import QAxWidget
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
@@ -31,11 +29,11 @@ class UpdaterTickKiwoom:
             if len(tick) != 2:
                 self.UpdateTickData(tick[0], tick[1], tick[2], tick[3], tick[4], tick[5], tick[6], tick[7],
                                     tick[8], tick[9], tick[10], tick[11], tick[12], tick[13], tick[14],
-                                    tick[15], tick[16], tick[17], tick[18], tick[19], tick[20])
+                                    tick[15], tick[16], tick[17], tick[18], tick[19], tick[20], tick[21], tick[22])
             elif tick[0] == '틱데이터저장':
                 self.PutTickData(tick[1])
 
-    def UpdateTickData(self, code, c, o, h, low, per, dm, ch, vp, vitime, vid5,
+    def UpdateTickData(self, code, c, o, h, low, per, dm, ch, vp, bids, asks, vitime, vid5,
                        s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg, d, receiv_time):
         try:
             hlm = int(round((h + low) / 2))
@@ -45,9 +43,11 @@ class UpdaterTickKiwoom:
         d = self.str_tday + d
         if code not in self.dict_df.keys():
             self.dict_df[code] = pd.DataFrame(
-                [[c, o, h, per, hlmp, dm, dm, ch, vp, vitime, vid5, s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg]],
+                [[c, o, h, per, hlmp, dm, dm, ch, vp, bids, asks, vitime, vid5,
+                  s2hg, s1hg, b1hg, b2hg, s2jr, s1jr, b1jr, b2jr]],
                 columns=['현재가', '시가', '고가', '등락율', '고저평균대비등락율', '거래대금', '누적거래대금', '체결강도',
-                         '전일거래량대비', 'VI발동시간', '상승VID5가격', '매도호가2', '매도호가1', '매수호가1', '매수호가2',
+                         '전일거래량대비', '매수수량', '매도수량', 'VI발동시간', '상승VID5가격',
+                         '매도호가2', '매도호가1', '매수호가1', '매수호가2',
                          '매도잔량2', '매도잔량1', '매수잔량1', '매수잔량2'],
                 index=[d])
         else:
@@ -65,12 +65,18 @@ class UpdaterTickKiwoom:
 
     def PutTickData(self, codes):
         for code in list(self.dict_df.keys()):
+            columns = ['현재가', '시가', '고가', '거래대금', '누적거래대금', '상승VID5가격', '매수수량', '매도수량',
+                       '매도호가2', '매도호가1', '매수호가1', '매수호가2', '매도잔량2', '매도잔량1', '매수잔량1', '매수잔량2']
+            self.dict_df[code][columns] = self.dict_df[code][columns].astype(int)
+            """
+            당일 거래목록만 저장
             if code in codes:
-                columns = ['현재가', '시가', '고가', '거래대금', '누적거래대금', '상승VID5가격',
+                columns = ['현재가', '시가', '고가', '거래대금', '누적거래대금', '상승VID5가격', '매수수량', '매도수량',
                            '매도호가2', '매도호가1', '매수호가1', '매수호가2', '매도잔량2', '매도잔량1', '매수잔량1', '매수잔량2']
                 self.dict_df[code][columns] = self.dict_df[code][columns].astype(int)
             else:
                 del self.dict_df[code]
+            """
         self.queryQ.put([3, self.dict_df])
         sys.exit()
 
@@ -120,6 +126,7 @@ class CollectorTickKiwoom:
         self.dict_item = None
         self.dict_vipr = {}
         self.dict_tick = {}
+        self.dict_hoga = {}
         self.dict_cond = {}
         self.name_code = {}
         self.list_code = []
@@ -277,7 +284,7 @@ class CollectorTickKiwoom:
     def SaveDatabase(self):
         self.queryQ.put([3, self.df_mt, 'moneytop', 'append'])
         con = sqlite3.connect(db_tradelist)
-        df = pd.read_sql(f"SELECT * FROM tradelist WHERE 체결시간 LIKE '{self.str_tday}%'", con)
+        df = pd.read_sql(f"SELECT * FROM s_tradelist WHERE 체결시간 LIKE '{self.str_tday}%'", con)
         con.close()
         df = df.set_index('index')
         codes = []
@@ -352,24 +359,38 @@ class CollectorTickKiwoom:
                     self.UpdateViPriceDown5(code, name)
         elif realtype == '주식체결':
             try:
-                d = self.GetCommRealData(code, 20)
+                c = abs(int(self.GetCommRealData(code, 10)))
+                o = abs(int(self.GetCommRealData(code, 16)))
+                v = int(self.GetCommRealData(code, 15))
+                t = self.GetCommRealData(code, 20)
             except Exception as e:
                 self.windowQ.put([ui_num['S단순텍스트'], f'OnReceiveRealData 주식체결 {e}'])
             else:
-                if d != self.str_jcct[8:]:
-                    self.str_jcct = self.str_tday + d
+                if t != self.str_jcct[8:]:
+                    self.str_jcct = self.str_tday + t
+                if code not in self.dict_vipr.keys():
+                    self.InsertViPriceDown5(code, o)
+                if code in self.dict_vipr.keys() and not self.dict_vipr[code][0] and now() > self.dict_vipr[code][1]:
+                    self.UpdateViPriceDown5(code, c)
+
                 try:
-                    c = abs(int(self.GetCommRealData(code, 10)))
-                    o = abs(int(self.GetCommRealData(code, 16)))
-                except Exception as e:
-                    self.windowQ.put([ui_num['S단순텍스트'], f'OnReceiveRealData 주식체결 {e}'])
+                    pret = self.dict_tick[code][0]
+                    bid_volumns = self.dict_tick[code][1]
+                    ask_volumns = self.dict_tick[code][2]
+                except KeyError:
+                    pret = None
+                    bid_volumns = 0
+                    ask_volumns = 0
+
+                if v > 0:
+                    self.dict_tick[code] = [t, bid_volumns + abs(v), ask_volumns]
                 else:
-                    if code not in self.dict_vipr.keys():
-                        self.InsertViPriceDown5(code, o)
-                    if code in self.dict_vipr.keys() and not self.dict_vipr[code][0] and now() > self.dict_vipr[code][1]:
-                        self.UpdateViPriceDown5(code, c)
-                    if code in self.dict_tick.keys() and d == self.dict_tick[code][0]:
-                        return
+                    self.dict_tick[code] = [t, bid_volumns, ask_volumns + abs(v)]
+
+                if t != pret:
+                    bids = self.dict_tick[code][1]
+                    asks = self.dict_tick[code][2]
+                    self.dict_tick[code] = [t, 0, 0]
                     try:
                         h = abs(int(self.GetCommRealData(code, 17)))
                         low = abs(int(self.GetCommRealData(code, 18)))
@@ -380,7 +401,7 @@ class CollectorTickKiwoom:
                     except Exception as e:
                         self.windowQ.put([ui_num['S단순텍스트'], f'OnReceiveRealData 주식체결 {e}'])
                     else:
-                        self.UpdateTickData(code, c, o, h, low, per, dm, ch, vp, d)
+                        self.UpdateTickData(code, c, o, h, low, per, dm, ch, vp, bids, asks, t)
         elif realtype == '주식호가잔량':
             try:
                 s1jr = int(self.GetCommRealData(code, 61))
@@ -394,7 +415,7 @@ class CollectorTickKiwoom:
             except Exception as e:
                 self.windowQ.put([ui_num['S단순텍스트'], f'OnReceiveRealData 주식호가잔량 {e}'])
             else:
-                self.UpdateHoga(code, s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg)
+                self.dict_hoga[code] = [s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg]
 
     def InsertViPriceDown5(self, code, o):
         vid5 = self.GetVIPriceDown5(code, o)
@@ -437,17 +458,15 @@ class CollectorTickKiwoom:
             vid5 = self.GetVIPriceDown5(code, key)
             self.dict_vipr[code] = [True, timedelta_sec(5), vid5]
 
-    def UpdateTickData(self, code, c, o, h, low, per, dm, ch, vp, d):
+    def UpdateTickData(self, code, c, o, h, low, per, dm, ch, vp, bids, asks, t):
         vitime = strf_time('%Y%m%d%H%M%S', self.dict_vipr[code][1])
-        vi = self.dict_vipr[code][2]
+        vid5 = self.dict_vipr[code][2]
         try:
-            s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg = self.dict_tick[code][1:]
-            self.dict_tick[code][0] = d
+            s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg = self.dict_hoga[code]
         except KeyError:
             s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg = 0, 0, 0, 0, 0, 0, 0, 0
-            self.dict_tick[code] = [d, 0, 0, 0, 0, 0, 0, 0, 0]
-        data = [code, c, o, h, low, per, dm, ch, vp, vitime, vi,
-                s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg, d, now()]
+        data = [code, c, o, h, low, per, dm, ch, vp, bids, asks, vitime, vid5,
+                s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg, t, now()]
         if code in self.dict_code['틱1']:
             self.tick1Q.put(data)
         elif code in self.dict_code['틱2']:
@@ -464,13 +483,6 @@ class CollectorTickKiwoom:
             self.tick7Q.put(data)
         elif code in self.dict_code['틱8']:
             self.tick8Q.put(data)
-
-    def UpdateHoga(self, code, s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg):
-        try:
-            d = self.dict_tick[code][0]
-        except KeyError:
-            d = '090000'
-        self.dict_tick[code] = [d, s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg]
 
     def UpdateMoneyTop(self):
         timetype = '%Y%m%d%H%M%S'

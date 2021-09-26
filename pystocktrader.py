@@ -1,9 +1,7 @@
 import sys
 import psutil
-import sqlite3
 import logging
 import subprocess
-import pandas as pd
 from PyQt5.QtTest import QTest
 from multiprocessing import Process, Queue
 from trader.trader_upbit import TraderUpbit
@@ -39,11 +37,15 @@ if len(dfs) > 0:
     KIWOOM_TRADER = dfs['키움트레이더'][0]
     UPBIT_COLLECTOR = dfs['업비트콜렉터'][0]
     UPBIT_TRADER = dfs['업비트트레이더'][0]
+    BACKTESTER = dfs['백테스터'][0]
+    BACKTESTER_TIME = dfs['시작시간'][0]
 else:
     KIWOOM_COLLECTOR = False
     KIWOOM_TRADER = False
     UPBIT_COLLECTOR = False
     UPBIT_TRADER = False
+    BACKTESTER = False
+    BACKTESTER_TIME = 0
 
 
 class Window(QtWidgets.QMainWindow):
@@ -62,6 +64,9 @@ class Window(QtWidgets.QMainWindow):
 
         SetUI(self)
 
+        if int(strf_time('%H%M%S')) < 80000 or 160000 < int(strf_time('%H%M%S')):
+            self.main_tabWidget.setCurrentWidget(self.ct_tab)
+
         self.cpu_per = 0
         self.int_time = int(strf_time('%H%M%S'))
         self.dict_name = {}
@@ -70,6 +75,10 @@ class Window(QtWidgets.QMainWindow):
         con = sqlite3.connect(db_setting)
         df = pd.read_sql('SELECT * FROM stock', con)
         df = df.set_index('index')
+        self.dict_intg['백테스팅기간1'] = df['백테스팅기간'][0]
+        self.dict_intg['백테스팅시간1'] = df['백테스팅시간'][0]
+        self.dict_intg['시작시간1'] = df['시작시간'][0]
+        self.dict_intg['종료시간1'] = df['종료시간'][0]
         self.dict_intg['체결강도차이1'] = df['체결강도차이'][0]
         self.dict_intg['평균시간1'] = df['평균시간'][0]
         self.dict_intg['거래대금차이1'] = df['거래대금차이'][0]
@@ -83,6 +92,10 @@ class Window(QtWidgets.QMainWindow):
         con = sqlite3.connect(db_setting)
         df = pd.read_sql('SELECT * FROM coin', con)
         df = df.set_index('index')
+        self.dict_intg['백테스팅기간2'] = df['백테스팅기간'][0]
+        self.dict_intg['백테스팅시간2'] = df['백테스팅시간'][0]
+        self.dict_intg['시작시간2'] = df['시작시간'][0]
+        self.dict_intg['종료시간2'] = df['종료시간'][0]
         self.dict_intg['체결강도차이2'] = df['체결강도차이'][0]
         self.dict_intg['평균시간2'] = df['평균시간'][0]
         self.dict_intg['거래대금차이2'] = df['거래대금차이'][0]
@@ -167,7 +180,6 @@ class Window(QtWidgets.QMainWindow):
 
             if KIWOOM_TRADER and self.int_time < stock_trad_time <= int(strf_time('%H%M%S')):
                 if KIWOOM_ACCOUNT1:
-                    self.SetColumnsGJ('S')
                     Process(target=StrategyStock, args=(windowQ, stockQ, sstgQ), daemon=True).start()
                     Process(target=TraderKiwoom, args=(windowQ, stockQ, sstgQ, soundQ, queryQ, teleQ),
                             daemon=True).start()
@@ -178,19 +190,22 @@ class Window(QtWidgets.QMainWindow):
                     text = '키움증권 첫번째 계정이 설정되지 않아 트레이더를 실행할 수 없습니다.'
                     windowQ.put([ui_num['S로그텍스트'], text])
 
-        if backtest_time < self.int_time < stock_vjup_time:
-            if self.backtester_count == 0 and (self.backtester_process is None or self.backtester_process.poll() == 0):
-                self.ButtonClicked_8()
-                QTest.qWait(3000)
-                self.ButtonClicked_9()
-                self.backtester_count = 1
-            if self.backtester_count == 1 and (self.backtester_process is None or self.backtester_process.poll() == 0):
-                self.ButtonClicked_13()
-                QTest.qWait(3000)
-                self.ButtonClicked_14()
-                self.backtester_count = 2
+        if BACKTESTER:
+            if BACKTESTER_TIME < self.int_time < stock_vjup_time:
+                if self.backtester_count == 0 and \
+                        (self.backtester_process is None or self.backtester_process.poll() == 0):
+                    self.ButtonClicked_8()
+                    QTest.qWait(3000)
+                    self.ButtonClicked_9()
+                    self.backtester_count = 1
+                if self.backtester_count == 1 and \
+                        (self.backtester_process is None or self.backtester_process.poll() == 0):
+                    self.ButtonClicked_13()
+                    QTest.qWait(3000)
+                    self.ButtonClicked_14()
+                    self.backtester_count = 2
 
-        if UPBIT_COLLECTOR and (self.int_time < coin_exit_time or coin_coll_time + 100 < self.int_time):
+        if UPBIT_COLLECTOR:
             if not self.websocket_ticker.isRunning():
                 self.websocket_ticker.start()
             if not self.websocket_orderbook.isRunning():
@@ -199,18 +214,17 @@ class Window(QtWidgets.QMainWindow):
                 self.coin_tickupdater1_process.start()
             if not self.coin_tickupdater2_process.is_alive():
                 self.coin_tickupdater2_process.start()
-                text = '코인 콜렉터를 재시작하였습니다.'
+                text = '코인 콜렉터를 시작하였습니다.'
                 soundQ.put(text)
                 teleQ.put(text)
 
-        if UPBIT_TRADER and (self.int_time < coin_exit_time or coin_trad_time + 100 < self.int_time):
+        if UPBIT_TRADER:
             if UPBIT_ACCOUNT:
                 if not self.strategy_process.is_alive():
-                    self.SetColumnsGJ('C')
                     self.strategy_process.start()
                 if not self.trader_upbit.isRunning():
                     self.trader_upbit.start()
-                    text = '코인 트레이더를 재시작하였습니다.'
+                    text = '코인 트레이더를 시작하였습니다.'
                     soundQ.put(text)
                     teleQ.put(text)
             else:
@@ -218,28 +232,6 @@ class Window(QtWidgets.QMainWindow):
                 windowQ.put([ui_num['C로그텍스트'], text])
 
         self.int_time = int(strf_time('%H%M%S'))
-
-    def SetColumnsGJ(self, gubun):
-        if gubun == 'S':
-            self.gj_tableWidget.setColumnWidth(0, 122)
-            self.gj_tableWidget.setColumnWidth(1, 68)
-            self.gj_tableWidget.setColumnWidth(2, 68)
-            self.gj_tableWidget.setColumnWidth(3, 68)
-            self.gj_tableWidget.setColumnWidth(4, 68)
-            self.gj_tableWidget.setColumnWidth(5, 68)
-            self.gj_tableWidget.setColumnWidth(6, 68)
-            self.gj_tableWidget.setColumnWidth(7, 68)
-            self.gj_tableWidget.setColumnWidth(8, 68)
-        elif gubun == 'C':
-            self.gj_tableWidget.setColumnWidth(0, 85)
-            self.gj_tableWidget.setColumnWidth(1, 55)
-            self.gj_tableWidget.setColumnWidth(2, 55)
-            self.gj_tableWidget.setColumnWidth(3, 90)
-            self.gj_tableWidget.setColumnWidth(4, 126)
-            self.gj_tableWidget.setColumnWidth(5, 55)
-            self.gj_tableWidget.setColumnWidth(6, 90)
-            self.gj_tableWidget.setColumnWidth(7, 55)
-            self.gj_tableWidget.setColumnWidth(8, 55)
 
     def UpdateProgressBar(self):
         self.progressBar.setValue(int(self.cpu_per))
@@ -249,8 +241,8 @@ class Window(QtWidgets.QMainWindow):
         self.cpu_per = psutil.cpu_percent(interval=1)
 
     def ButtonClicked_1(self):
-        if self.main_tabWidget.currentWidget() == self.td_tab:
-            if not self.calendarWidget.isVisible():
+        if self.main_tabWidget.currentWidget() == self.st_tab:
+            if not self.s_calendarWidget.isVisible():
                 boolean1 = False
                 boolean2 = True
                 self.tt_pushButton.setStyleSheet(style_bc_dk)
@@ -258,20 +250,43 @@ class Window(QtWidgets.QMainWindow):
                 boolean1 = True
                 boolean2 = False
                 self.tt_pushButton.setStyleSheet(style_bc_bt)
-            self.tt_tableWidget.setVisible(boolean1)
-            self.td_tableWidget.setVisible(boolean1)
-            self.tj_tableWidget.setVisible(boolean1)
-            self.jg_tableWidget.setVisible(boolean1)
-            self.gj_tableWidget.setVisible(boolean1)
-            self.cj_tableWidget.setVisible(boolean1)
-            self.calendarWidget.setVisible(boolean2)
-            self.dt_tableWidget.setVisible(boolean2)
-            self.ds_tableWidget.setVisible(boolean2)
-            self.nt_pushButton_01.setVisible(boolean2)
-            self.nt_pushButton_02.setVisible(boolean2)
-            self.nt_pushButton_03.setVisible(boolean2)
-            self.nt_tableWidget.setVisible(boolean2)
-            self.ns_tableWidget.setVisible(boolean2)
+            self.stt_tableWidget.setVisible(boolean1)
+            self.std_tableWidget.setVisible(boolean1)
+            self.stj_tableWidget.setVisible(boolean1)
+            self.sjg_tableWidget.setVisible(boolean1)
+            self.sgj_tableWidget.setVisible(boolean1)
+            self.scj_tableWidget.setVisible(boolean1)
+            self.s_calendarWidget.setVisible(boolean2)
+            self.sdt_tableWidget.setVisible(boolean2)
+            self.sds_tableWidget.setVisible(boolean2)
+            self.snt_pushButton_01.setVisible(boolean2)
+            self.snt_pushButton_02.setVisible(boolean2)
+            self.snt_pushButton_03.setVisible(boolean2)
+            self.snt_tableWidget.setVisible(boolean2)
+            self.sns_tableWidget.setVisible(boolean2)
+        elif self.main_tabWidget.currentWidget() == self.ct_tab:
+            if not self.c_calendarWidget.isVisible():
+                boolean1 = False
+                boolean2 = True
+                self.tt_pushButton.setStyleSheet(style_bc_dk)
+            else:
+                boolean1 = True
+                boolean2 = False
+                self.tt_pushButton.setStyleSheet(style_bc_bt)
+            self.ctt_tableWidget.setVisible(boolean1)
+            self.ctd_tableWidget.setVisible(boolean1)
+            self.ctj_tableWidget.setVisible(boolean1)
+            self.cjg_tableWidget.setVisible(boolean1)
+            self.cgj_tableWidget.setVisible(boolean1)
+            self.ccj_tableWidget.setVisible(boolean1)
+            self.c_calendarWidget.setVisible(boolean2)
+            self.cdt_tableWidget.setVisible(boolean2)
+            self.cds_tableWidget.setVisible(boolean2)
+            self.cnt_pushButton_01.setVisible(boolean2)
+            self.cnt_pushButton_02.setVisible(boolean2)
+            self.cnt_pushButton_03.setVisible(boolean2)
+            self.cnt_tableWidget.setVisible(boolean2)
+            self.cns_tableWidget.setVisible(boolean2)
         else:
             QtWidgets.QMessageBox.warning(self, '오류 알림', '해당 버튼은 트레이더탭에서만 작동합니다.\n')
 
@@ -290,13 +305,15 @@ class Window(QtWidgets.QMainWindow):
         )
         if buttonReply == QtWidgets.QMessageBox.Yes:
             columns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-                       26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]
-            data = [10, 14, 36000, 3, 4, 5, 6, 7, 8, 9, 0.1, 0.1, 30, 60, 90, 120, 150, 180, 30, 3, 0, 500, 50, 10,
-                    50, 100, 10, 10, 0, 100000, 10000, 1000, 0, 10, 1, 0.1, 25, 15, -1, -1, 3, 10, 1, 0.2, 6]
+                       26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47]
+            data = [10, 14, 36000, 90000, 100000, 3, 4, 5, 6, 7, 8, 9, 0.1, 0.1,
+                    30, 60, 90, 120, 150, 180, 30, 3, 0, 500, 50, 10, 50, 100, 10, 10,
+                    0, 100000, 10000, 1000, 0, 10, 1, 0.1, 25, 15, -1, -1, 3, 10, 1, 0.2, 6]
             df = pd.DataFrame([data], columns=columns, index=[0])
             queryQ.put([1, df, 'stockback_jcv', 'replace'])
-            data = [10, 14, 1008000, 3, 4, 5, 6, 7, 8, 9, 0.1, 0.1, 30, 60, 90, 120, 150, 180, 30, 3,
-                    0, 100000000, 10000000, 10000000, 50, 100, 10, 10, 0, 1000000000, 100000000, 100000000,
+            data = [10, 14, 1008000, 90000, 100000, 3, 4, 5, 6, 7, 8, 9, 0.1, 0.1,
+                    30, 60, 90, 120, 150, 180, 30, 3, 0, 100000000, 10000000, 10000000,
+                    50, 100, 10, 10, 0, 1000000000, 100000000, 100000000,
                     0, 10, 1, 0.1, 25, 15, -1, -1, 3, 10, 1, 0.2, 6]
             df = pd.DataFrame([data], columns=columns, index=[0])
             queryQ.put([1, df, 'coinback_jjv', 'replace'])
@@ -307,10 +324,14 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No
         )
         if buttonReply == QtWidgets.QMessageBox.Yes:
-            queryQ.put([2, 'DELETE FROM jangolist'])
-            queryQ.put([2, 'DELETE FROM tradelist'])
-            queryQ.put([2, 'DELETE FROM chegeollist'])
-            queryQ.put([2, 'DELETE FROM totaltradelist'])
+            queryQ.put([2, 'DELETE FROM s_jangolist'])
+            queryQ.put([2, 'DELETE FROM s_tradelist'])
+            queryQ.put([2, 'DELETE FROM s_chegeollist'])
+            queryQ.put([2, 'DELETE FROM s_totaltradelist'])
+            queryQ.put([2, 'DELETE FROM c_jangolist'])
+            queryQ.put([2, 'DELETE FROM c_tradelist'])
+            queryQ.put([2, 'DELETE FROM c_chegeollist'])
+            queryQ.put([2, 'DELETE FROM c_totaltradelist'])
 
     def ButtonClicked_6(self):
         buttonReply = QtWidgets.QMessageBox.warning(
@@ -324,8 +345,14 @@ class Window(QtWidgets.QMainWindow):
 
     def ButtonClicked_7(self, cmd):
         if '집계' in cmd:
+            if 'S' in cmd:
+                gubun = 'S'
+                table = 's_totaltradelist'
+            else:
+                gubun = 'C'
+                table = 'c_totaltradelist'
             con = sqlite3.connect(db_tradelist)
-            df = pd.read_sql('SELECT * FROM totaltradelist', con)
+            df = pd.read_sql(f'SELECT * FROM {table}', con)
             con.close()
             df = df[::-1]
             if len(df) > 0:
@@ -338,13 +365,13 @@ class Window(QtWidgets.QMainWindow):
                 nsig = df['수익금합계'].sum()
                 df2 = pd.DataFrame(columns=columns_nt)
                 df2.at[0] = pr, nbg, nsg, npg, nmg, sp, nsig
-                self.UpdateTablewidget([ui_num['누적합계'], df2])
+                self.UpdateTablewidget([ui_num[f'{gubun}누적합계'], df2])
             else:
                 QtWidgets.QMessageBox.critical(self, '오류 알림', '거래목록이 존재하지 않습니다.\n')
                 return
             if cmd == '일별집계':
                 df = df.rename(columns={'index': '일자'})
-                self.UpdateTablewidget([ui_num['누적상세'], df])
+                self.UpdateTablewidget([ui_num[f'{gubun}누적상세'], df])
             elif cmd == '월별집계':
                 df['일자'] = df['index'].apply(lambda x: x[:6])
                 df2 = pd.DataFrame(columns=columns_nd)
@@ -359,7 +386,7 @@ class Window(QtWidgets.QMainWindow):
                         ttsg = df3['수익금합계'].sum()
                         df2.at[month] = month, tbg, tsg, tpg, tmg, sp, ttsg
                     month = str(int(month) - 89) if int(month[4:]) == 1 else str(int(month) - 1)
-                self.UpdateTablewidget([ui_num['누적상세'], df2])
+                self.UpdateTablewidget([ui_num[f'{gubun}누적상세'], df2])
             elif cmd == '연도별집계':
                 df['일자'] = df['index'].apply(lambda x: x[:4])
                 df2 = pd.DataFrame(columns=columns_nd)
@@ -374,290 +401,302 @@ class Window(QtWidgets.QMainWindow):
                         ttsg = df3['수익금합계'].sum()
                         df2.at[year] = year, tbg, tsg, tpg, tmg, sp, ttsg
                     year = str(int(year) - 1)
-                self.UpdateTablewidget([ui_num['누적상세'], df2])
+                self.UpdateTablewidget([ui_num[f'{gubun}누적상세'], df2])
 
     def ButtonClicked_8(self):
         con = sqlite3.connect(db_setting)
         df = pd.read_sql('SELECT * FROM stockback_jcv', con)
         df = df.set_index('index')
         con.close()
-        self.sb_jcvc_lineEdit_01.setText(str(df['1'][0]))
-        self.sb_jcvc_lineEdit_02.setText(str(df['2'][0]))
-        self.sb_jcvc_lineEdit_03.setText(str(df['3'][0]))
-        self.sb_jcvc_lineEdit_04.setText(str(df['4'][0]))
-        self.sb_jcvc_lineEdit_05.setText(str(df['5'][0]))
-        self.sb_jcvc_lineEdit_06.setText(str(df['6'][0]))
-        self.sb_jcvc_lineEdit_07.setText(str(df['7'][0]))
-        self.sb_jcvc_lineEdit_08.setText(str(df['8'][0]))
-        self.sb_jcvc_lineEdit_09.setText(str(df['9'][0]))
-        self.sb_jcvc_lineEdit_10.setText(str(df['10'][0]))
-        self.sb_jcvc_lineEdit_11.setText(str(df['11'][0]))
-        self.sb_jcvc_lineEdit_12.setText(str(df['12'][0]))
-        self.sb_jcvc_lineEdit_13.setText(str(df['13'][0]))
-        self.sb_jcvc_lineEdit_14.setText(str(df['14'][0]))
-        self.sb_jcvc_lineEdit_15.setText(str(df['15'][0]))
-        self.sb_jcvc_lineEdit_16.setText(str(df['16'][0]))
-        self.sb_jcvc_lineEdit_17.setText(str(df['17'][0]))
-        self.sb_jcvc_lineEdit_18.setText(str(df['18'][0]))
-        self.sb_jcvc_lineEdit_19.setText(str(df['19'][0]))
-        self.sb_jcvc_lineEdit_20.setText(str(df['20'][0]))
-        self.sb_jcvc_lineEdit_21.setText(str(df['21'][0]))
-        self.sb_jcvc_lineEdit_22.setText(str(df['22'][0]))
-        self.sb_jcvc_lineEdit_23.setText(str(df['23'][0]))
-        self.sb_jcvc_lineEdit_24.setText(str(df['24'][0]))
-        self.sb_jcvc_lineEdit_25.setText(str(df['25'][0]))
-        self.sb_jcvc_lineEdit_26.setText(str(df['26'][0]))
-        self.sb_jcvc_lineEdit_27.setText(str(df['27'][0]))
-        self.sb_jcvc_lineEdit_28.setText(str(df['28'][0]))
-        self.sb_jcvc_lineEdit_29.setText(str(df['29'][0]))
-        self.sb_jcvc_lineEdit_30.setText(str(df['30'][0]))
-        self.sb_jcvc_lineEdit_31.setText(str(df['31'][0]))
-        self.sb_jcvc_lineEdit_32.setText(str(df['32'][0]))
-        self.sb_jcvc_lineEdit_33.setText(str(df['33'][0]))
-        self.sb_jcvc_lineEdit_34.setText(str(df['34'][0]))
-        self.sb_jcvc_lineEdit_35.setText(str(df['35'][0]))
-        self.sb_jcvc_lineEdit_36.setText(str(df['36'][0]))
-        self.sb_jcvc_lineEdit_37.setText(str(df['37'][0]))
-        self.sb_jcvc_lineEdit_38.setText(str(df['38'][0]))
-        self.sb_jcvc_lineEdit_39.setText(str(df['39'][0]))
-        self.sb_jcvc_lineEdit_40.setText(str(df['40'][0]))
-        self.sb_jcvc_lineEdit_41.setText(str(df['41'][0]))
-        self.sb_jcvc_lineEdit_42.setText(str(df['42'][0]))
-        self.sb_jcvc_lineEdit_43.setText(str(df['43'][0]))
-        self.sb_jcvc_lineEdit_44.setText(str(df['44'][0]))
-        self.sb_jcvc_lineEdit_45.setText(str(df['45'][0]))
+        self.sbvc_lineEdit_01.setText(str(df['1'][0]))
+        self.sbvc_lineEdit_02.setText(str(df['2'][0]))
+        self.sbvc_lineEdit_03.setText(str(df['3'][0]))
+        self.sbvc_lineEdit_04.setText(str(df['4'][0]))
+        self.sbvc_lineEdit_05.setText(str(df['5'][0]))
+        self.sbvc_lineEdit_06.setText(str(df['6'][0]))
+        self.sbvc_lineEdit_07.setText(str(df['7'][0]))
+        self.sbvc_lineEdit_08.setText(str(df['8'][0]))
+        self.sbvc_lineEdit_09.setText(str(df['9'][0]))
+        self.sbvc_lineEdit_10.setText(str(df['10'][0]))
+        self.sbvc_lineEdit_11.setText(str(df['11'][0]))
+        self.sbvc_lineEdit_12.setText(str(df['12'][0]))
+        self.sbvc_lineEdit_13.setText(str(df['13'][0]))
+        self.sbvc_lineEdit_14.setText(str(df['14'][0]))
+        self.sbvc_lineEdit_15.setText(str(df['15'][0]))
+        self.sbvc_lineEdit_16.setText(str(df['16'][0]))
+        self.sbvc_lineEdit_17.setText(str(df['17'][0]))
+        self.sbvc_lineEdit_18.setText(str(df['18'][0]))
+        self.sbvc_lineEdit_19.setText(str(df['19'][0]))
+        self.sbvc_lineEdit_20.setText(str(df['20'][0]))
+        self.sbvc_lineEdit_21.setText(str(df['21'][0]))
+        self.sbvc_lineEdit_22.setText(str(df['22'][0]))
+        self.sbvc_lineEdit_23.setText(str(df['23'][0]))
+        self.sbvc_lineEdit_24.setText(str(df['24'][0]))
+        self.sbvc_lineEdit_25.setText(str(df['25'][0]))
+        self.sbvc_lineEdit_26.setText(str(df['26'][0]))
+        self.sbvc_lineEdit_27.setText(str(df['27'][0]))
+        self.sbvc_lineEdit_28.setText(str(df['28'][0]))
+        self.sbvc_lineEdit_29.setText(str(df['29'][0]))
+        self.sbvc_lineEdit_30.setText(str(df['30'][0]))
+        self.sbvc_lineEdit_31.setText(str(df['31'][0]))
+        self.sbvc_lineEdit_32.setText(str(df['32'][0]))
+        self.sbvc_lineEdit_33.setText(str(df['33'][0]))
+        self.sbvc_lineEdit_34.setText(str(df['34'][0]))
+        self.sbvc_lineEdit_35.setText(str(df['35'][0]))
+        self.sbvc_lineEdit_36.setText(str(df['36'][0]))
+        self.sbvc_lineEdit_37.setText(str(df['37'][0]))
+        self.sbvc_lineEdit_38.setText(str(df['38'][0]))
+        self.sbvc_lineEdit_39.setText(str(df['39'][0]))
+        self.sbvc_lineEdit_40.setText(str(df['40'][0]))
+        self.sbvc_lineEdit_41.setText(str(df['41'][0]))
+        self.sbvc_lineEdit_42.setText(str(df['42'][0]))
+        self.sbvc_lineEdit_43.setText(str(df['43'][0]))
+        self.sbvc_lineEdit_44.setText(str(df['44'][0]))
+        self.sbvc_lineEdit_45.setText(str(df['45'][0]))
+        self.sbvc_lineEdit_46.setText(str(df['46'][0]))
+        self.sbvc_lineEdit_47.setText(str(df['47'][0]))
 
     def ButtonClicked_9(self):
         if self.backtester_process is not None and self.backtester_process.poll() != 0:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '현재 백테스터가 실행중입니다.\n중복 실행할 수 없습니다.\n')
             return
         textfull = True
-        if self.sb_jcvc_lineEdit_01.text() == '':
+        if self.sbvc_lineEdit_01.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_02.text() == '':
+        elif self.sbvc_lineEdit_02.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_03.text() == '':
+        elif self.sbvc_lineEdit_03.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_04.text() == '':
+        elif self.sbvc_lineEdit_04.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_05.text() == '':
+        elif self.sbvc_lineEdit_05.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_06.text() == '':
+        elif self.sbvc_lineEdit_06.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_07.text() == '':
+        elif self.sbvc_lineEdit_07.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_08.text() == '':
+        elif self.sbvc_lineEdit_08.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_09.text() == '':
+        elif self.sbvc_lineEdit_09.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_10.text() == '':
+        elif self.sbvc_lineEdit_10.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_11.text() == '':
+        elif self.sbvc_lineEdit_11.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_12.text() == '':
+        elif self.sbvc_lineEdit_12.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_13.text() == '':
+        elif self.sbvc_lineEdit_13.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_14.text() == '':
+        elif self.sbvc_lineEdit_14.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_15.text() == '':
+        elif self.sbvc_lineEdit_15.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_16.text() == '':
+        elif self.sbvc_lineEdit_16.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_17.text() == '':
+        elif self.sbvc_lineEdit_17.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_18.text() == '':
+        elif self.sbvc_lineEdit_18.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_19.text() == '':
+        elif self.sbvc_lineEdit_19.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_20.text() == '':
+        elif self.sbvc_lineEdit_20.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_21.text() == '':
+        elif self.sbvc_lineEdit_21.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_22.text() == '':
+        elif self.sbvc_lineEdit_22.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_23.text() == '':
+        elif self.sbvc_lineEdit_23.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_24.text() == '':
+        elif self.sbvc_lineEdit_24.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_25.text() == '':
+        elif self.sbvc_lineEdit_25.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_26.text() == '':
+        elif self.sbvc_lineEdit_26.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_27.text() == '':
+        elif self.sbvc_lineEdit_27.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_28.text() == '':
+        elif self.sbvc_lineEdit_28.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_29.text() == '':
+        elif self.sbvc_lineEdit_29.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_30.text() == '':
+        elif self.sbvc_lineEdit_30.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_31.text() == '':
+        elif self.sbvc_lineEdit_31.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_32.text() == '':
+        elif self.sbvc_lineEdit_32.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_33.text() == '':
+        elif self.sbvc_lineEdit_33.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_34.text() == '':
+        elif self.sbvc_lineEdit_34.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_35.text() == '':
+        elif self.sbvc_lineEdit_35.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_36.text() == '':
+        elif self.sbvc_lineEdit_36.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_37.text() == '':
+        elif self.sbvc_lineEdit_37.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_38.text() == '':
+        elif self.sbvc_lineEdit_38.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_39.text() == '':
+        elif self.sbvc_lineEdit_39.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_40.text() == '':
+        elif self.sbvc_lineEdit_40.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_41.text() == '':
+        elif self.sbvc_lineEdit_41.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_42.text() == '':
+        elif self.sbvc_lineEdit_42.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_43.text() == '':
+        elif self.sbvc_lineEdit_43.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_44.text() == '':
+        elif self.sbvc_lineEdit_44.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_45.text() == '':
+        elif self.sbvc_lineEdit_45.text() == '':
+            textfull = False
+        elif self.sbvc_lineEdit_46.text() == '':
+            textfull = False
+        elif self.sbvc_lineEdit_47.text() == '':
             textfull = False
         if not textfull:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         self.backtester_process = subprocess.Popen(
             f'python {system_path}/backtester/backtester_stock_vc.py '
-            f'{self.sb_jcvc_lineEdit_01.text()} {self.sb_jcvc_lineEdit_02.text()} {self.sb_jcvc_lineEdit_03.text()} '
-            f'{self.sb_jcvc_lineEdit_04.text()} {self.sb_jcvc_lineEdit_05.text()} {self.sb_jcvc_lineEdit_06.text()} '
-            f'{self.sb_jcvc_lineEdit_07.text()} {self.sb_jcvc_lineEdit_08.text()} {self.sb_jcvc_lineEdit_09.text()} '
-            f'{self.sb_jcvc_lineEdit_10.text()} {self.sb_jcvc_lineEdit_11.text()} {self.sb_jcvc_lineEdit_12.text()} '
-            f'{self.sb_jcvc_lineEdit_13.text()} {self.sb_jcvc_lineEdit_14.text()} {self.sb_jcvc_lineEdit_15.text()} '
-            f'{self.sb_jcvc_lineEdit_16.text()} {self.sb_jcvc_lineEdit_17.text()} {self.sb_jcvc_lineEdit_18.text()} '
-            f'{self.sb_jcvc_lineEdit_19.text()} {self.sb_jcvc_lineEdit_20.text()} {self.sb_jcvc_lineEdit_21.text()} '
-            f'{self.sb_jcvc_lineEdit_22.text()} {self.sb_jcvc_lineEdit_23.text()} {self.sb_jcvc_lineEdit_24.text()} '
-            f'{self.sb_jcvc_lineEdit_25.text()} {self.sb_jcvc_lineEdit_26.text()} {self.sb_jcvc_lineEdit_27.text()} '
-            f'{self.sb_jcvc_lineEdit_28.text()} {self.sb_jcvc_lineEdit_29.text()} {self.sb_jcvc_lineEdit_30.text()} '
-            f'{self.sb_jcvc_lineEdit_31.text()} {self.sb_jcvc_lineEdit_32.text()} {self.sb_jcvc_lineEdit_33.text()} '
-            f'{self.sb_jcvc_lineEdit_34.text()} {self.sb_jcvc_lineEdit_35.text()} {self.sb_jcvc_lineEdit_36.text()} '
-            f'{self.sb_jcvc_lineEdit_37.text()} {self.sb_jcvc_lineEdit_38.text()} {self.sb_jcvc_lineEdit_39.text()} '
-            f'{self.sb_jcvc_lineEdit_40.text()} {self.sb_jcvc_lineEdit_41.text()} {self.sb_jcvc_lineEdit_42.text()} '
-            f'{self.sb_jcvc_lineEdit_43.text()} {self.sb_jcvc_lineEdit_44.text()} {self.sb_jcvc_lineEdit_45.text()}'
+            f'{self.sbvc_lineEdit_01.text()} {self.sbvc_lineEdit_02.text()} {self.sbvc_lineEdit_03.text()} '
+            f'{self.sbvc_lineEdit_04.text()} {self.sbvc_lineEdit_05.text()} {self.sbvc_lineEdit_06.text()} '
+            f'{self.sbvc_lineEdit_07.text()} {self.sbvc_lineEdit_08.text()} {self.sbvc_lineEdit_09.text()} '
+            f'{self.sbvc_lineEdit_10.text()} {self.sbvc_lineEdit_11.text()} {self.sbvc_lineEdit_12.text()} '
+            f'{self.sbvc_lineEdit_13.text()} {self.sbvc_lineEdit_14.text()} {self.sbvc_lineEdit_15.text()} '
+            f'{self.sbvc_lineEdit_16.text()} {self.sbvc_lineEdit_17.text()} {self.sbvc_lineEdit_18.text()} '
+            f'{self.sbvc_lineEdit_19.text()} {self.sbvc_lineEdit_20.text()} {self.sbvc_lineEdit_21.text()} '
+            f'{self.sbvc_lineEdit_22.text()} {self.sbvc_lineEdit_23.text()} {self.sbvc_lineEdit_24.text()} '
+            f'{self.sbvc_lineEdit_25.text()} {self.sbvc_lineEdit_26.text()} {self.sbvc_lineEdit_27.text()} '
+            f'{self.sbvc_lineEdit_28.text()} {self.sbvc_lineEdit_29.text()} {self.sbvc_lineEdit_30.text()} '
+            f'{self.sbvc_lineEdit_31.text()} {self.sbvc_lineEdit_32.text()} {self.sbvc_lineEdit_33.text()} '
+            f'{self.sbvc_lineEdit_34.text()} {self.sbvc_lineEdit_35.text()} {self.sbvc_lineEdit_36.text()} '
+            f'{self.sbvc_lineEdit_37.text()} {self.sbvc_lineEdit_38.text()} {self.sbvc_lineEdit_39.text()} '
+            f'{self.sbvc_lineEdit_40.text()} {self.sbvc_lineEdit_41.text()} {self.sbvc_lineEdit_42.text()} '
+            f'{self.sbvc_lineEdit_43.text()} {self.sbvc_lineEdit_44.text()} {self.sbvc_lineEdit_45.text()} '
+            f'{self.sbvc_lineEdit_46.text()} {self.sbvc_lineEdit_47.text()}'
         )
 
     def ButtonClicked_10(self):
         textfull = True
-        if self.sb_jcvc_lineEdit_01.text() == '':
+        if self.sbvc_lineEdit_01.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_02.text() == '':
+        elif self.sbvc_lineEdit_02.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_03.text() == '':
+        elif self.sbvc_lineEdit_03.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_04.text() == '':
+        elif self.sbvc_lineEdit_04.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_05.text() == '':
+        elif self.sbvc_lineEdit_05.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_06.text() == '':
+        elif self.sbvc_lineEdit_06.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_07.text() == '':
+        elif self.sbvc_lineEdit_07.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_08.text() == '':
+        elif self.sbvc_lineEdit_08.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_09.text() == '':
+        elif self.sbvc_lineEdit_09.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_10.text() == '':
+        elif self.sbvc_lineEdit_10.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_11.text() == '':
+        elif self.sbvc_lineEdit_11.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_12.text() == '':
+        elif self.sbvc_lineEdit_12.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_13.text() == '':
+        elif self.sbvc_lineEdit_13.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_14.text() == '':
+        elif self.sbvc_lineEdit_14.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_15.text() == '':
+        elif self.sbvc_lineEdit_15.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_16.text() == '':
+        elif self.sbvc_lineEdit_16.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_17.text() == '':
+        elif self.sbvc_lineEdit_17.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_18.text() == '':
+        elif self.sbvc_lineEdit_18.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_19.text() == '':
+        elif self.sbvc_lineEdit_19.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_20.text() == '':
+        elif self.sbvc_lineEdit_20.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_21.text() == '':
+        elif self.sbvc_lineEdit_21.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_22.text() == '':
+        elif self.sbvc_lineEdit_22.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_23.text() == '':
+        elif self.sbvc_lineEdit_23.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_24.text() == '':
+        elif self.sbvc_lineEdit_24.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_25.text() == '':
+        elif self.sbvc_lineEdit_25.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_26.text() == '':
+        elif self.sbvc_lineEdit_26.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_27.text() == '':
+        elif self.sbvc_lineEdit_27.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_28.text() == '':
+        elif self.sbvc_lineEdit_28.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_29.text() == '':
+        elif self.sbvc_lineEdit_29.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_30.text() == '':
+        elif self.sbvc_lineEdit_30.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_31.text() == '':
+        elif self.sbvc_lineEdit_31.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_32.text() == '':
+        elif self.sbvc_lineEdit_32.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_33.text() == '':
+        elif self.sbvc_lineEdit_33.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_34.text() == '':
+        elif self.sbvc_lineEdit_34.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_35.text() == '':
+        elif self.sbvc_lineEdit_35.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_36.text() == '':
+        elif self.sbvc_lineEdit_36.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_37.text() == '':
+        elif self.sbvc_lineEdit_37.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_38.text() == '':
+        elif self.sbvc_lineEdit_38.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_39.text() == '':
+        elif self.sbvc_lineEdit_39.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_40.text() == '':
+        elif self.sbvc_lineEdit_40.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_41.text() == '':
+        elif self.sbvc_lineEdit_41.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_42.text() == '':
+        elif self.sbvc_lineEdit_42.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_43.text() == '':
+        elif self.sbvc_lineEdit_43.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_44.text() == '':
+        elif self.sbvc_lineEdit_44.text() == '':
             textfull = False
-        elif self.sb_jcvc_lineEdit_45.text() == '':
+        elif self.sbvc_lineEdit_45.text() == '':
+            textfull = False
+        elif self.sbvc_lineEdit_46.text() == '':
+            textfull = False
+        elif self.sbvc_lineEdit_47.text() == '':
             textfull = False
         if not textfull:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         data = [
-            self.sb_jcvc_lineEdit_01.text(), self.sb_jcvc_lineEdit_02.text(), self.sb_jcvc_lineEdit_03.text(),
-            self.sb_jcvc_lineEdit_04.text(), self.sb_jcvc_lineEdit_05.text(), self.sb_jcvc_lineEdit_06.text(),
-            self.sb_jcvc_lineEdit_07.text(), self.sb_jcvc_lineEdit_08.text(), self.sb_jcvc_lineEdit_09.text(),
-            self.sb_jcvc_lineEdit_10.text(), self.sb_jcvc_lineEdit_11.text(), self.sb_jcvc_lineEdit_12.text(),
-            self.sb_jcvc_lineEdit_13.text(), self.sb_jcvc_lineEdit_14.text(), self.sb_jcvc_lineEdit_15.text(),
-            self.sb_jcvc_lineEdit_16.text(), self.sb_jcvc_lineEdit_17.text(), self.sb_jcvc_lineEdit_18.text(),
-            self.sb_jcvc_lineEdit_19.text(), self.sb_jcvc_lineEdit_20.text(), self.sb_jcvc_lineEdit_21.text(),
-            self.sb_jcvc_lineEdit_22.text(), self.sb_jcvc_lineEdit_23.text(), self.sb_jcvc_lineEdit_24.text(),
-            self.sb_jcvc_lineEdit_25.text(), self.sb_jcvc_lineEdit_26.text(), self.sb_jcvc_lineEdit_27.text(),
-            self.sb_jcvc_lineEdit_28.text(), self.sb_jcvc_lineEdit_29.text(), self.sb_jcvc_lineEdit_30.text(),
-            self.sb_jcvc_lineEdit_31.text(), self.sb_jcvc_lineEdit_32.text(), self.sb_jcvc_lineEdit_33.text(),
-            self.sb_jcvc_lineEdit_34.text(), self.sb_jcvc_lineEdit_35.text(), self.sb_jcvc_lineEdit_36.text(),
-            self.sb_jcvc_lineEdit_37.text(), self.sb_jcvc_lineEdit_38.text(), self.sb_jcvc_lineEdit_39.text(),
-            self.sb_jcvc_lineEdit_40.text(), self.sb_jcvc_lineEdit_41.text(), self.sb_jcvc_lineEdit_42.text(),
-            self.sb_jcvc_lineEdit_43.text(), self.sb_jcvc_lineEdit_44.text(), self.sb_jcvc_lineEdit_45.text()
+            self.sbvc_lineEdit_01.text(), self.sbvc_lineEdit_02.text(), self.sbvc_lineEdit_03.text(),
+            self.sbvc_lineEdit_04.text(), self.sbvc_lineEdit_05.text(), self.sbvc_lineEdit_06.text(),
+            self.sbvc_lineEdit_07.text(), self.sbvc_lineEdit_08.text(), self.sbvc_lineEdit_09.text(),
+            self.sbvc_lineEdit_10.text(), self.sbvc_lineEdit_11.text(), self.sbvc_lineEdit_12.text(),
+            self.sbvc_lineEdit_13.text(), self.sbvc_lineEdit_14.text(), self.sbvc_lineEdit_15.text(),
+            self.sbvc_lineEdit_16.text(), self.sbvc_lineEdit_17.text(), self.sbvc_lineEdit_18.text(),
+            self.sbvc_lineEdit_19.text(), self.sbvc_lineEdit_20.text(), self.sbvc_lineEdit_21.text(),
+            self.sbvc_lineEdit_22.text(), self.sbvc_lineEdit_23.text(), self.sbvc_lineEdit_24.text(),
+            self.sbvc_lineEdit_25.text(), self.sbvc_lineEdit_26.text(), self.sbvc_lineEdit_27.text(),
+            self.sbvc_lineEdit_28.text(), self.sbvc_lineEdit_29.text(), self.sbvc_lineEdit_30.text(),
+            self.sbvc_lineEdit_31.text(), self.sbvc_lineEdit_32.text(), self.sbvc_lineEdit_33.text(),
+            self.sbvc_lineEdit_34.text(), self.sbvc_lineEdit_35.text(), self.sbvc_lineEdit_36.text(),
+            self.sbvc_lineEdit_37.text(), self.sbvc_lineEdit_38.text(), self.sbvc_lineEdit_39.text(),
+            self.sbvc_lineEdit_40.text(), self.sbvc_lineEdit_41.text(), self.sbvc_lineEdit_42.text(),
+            self.sbvc_lineEdit_43.text(), self.sbvc_lineEdit_44.text(), self.sbvc_lineEdit_45.text(),
+            self.sbvc_lineEdit_46.text(), self.sbvc_lineEdit_47.text()
         ]
         columns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-                   26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]
+                   26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47]
         df = pd.DataFrame([data], columns=columns, index=[0])
         queryQ.put([1, df, 'stockback_jcv', 'replace'])
 
@@ -666,57 +705,64 @@ class Window(QtWidgets.QMainWindow):
         df = pd.read_sql('SELECT * FROM stock', con)
         df = df.set_index('index')
         con.close()
-        self.sb_jcvj_lineEdit_01.setText('5')
-        self.sb_jcvj_lineEdit_02.setText('14')
-        self.sb_jcvj_lineEdit_03.setText('36000')
-        self.sb_jcvj_lineEdit_04.setText(str(df['체결강도차이'][0]))
-        self.sb_jcvj_lineEdit_05.setText(str(df['평균시간'][0]))
-        self.sb_jcvj_lineEdit_06.setText(str(df['거래대금차이'][0]))
-        self.sb_jcvj_lineEdit_07.setText(str(df['체결강도하한'][0]))
-        self.sb_jcvj_lineEdit_08.setText(str(df['누적거래대금하한'][0]))
-        self.sb_jcvj_lineEdit_09.setText(str(df['등락율하한'][0]))
-        self.sb_jcvj_lineEdit_10.setText(str(df['등락율상한'][0]))
-        self.sb_jcvj_lineEdit_11.setText(str(df['청산수익률'][0]))
-        self.sb_jcvj_lineEdit_12.setText('6')
+        self.sbvj_lineEdit_01.setText(str(df['종목당투자금'][0]))
+        self.sbvj_lineEdit_02.setText(str(df['백테스팅기간'][0]))
+        self.sbvj_lineEdit_03.setText(str(df['백테스팅시간'][0]))
+        self.sbvj_lineEdit_04.setText(str(df['시작시간'][0]))
+        self.sbvj_lineEdit_05.setText(str(df['종료시간'][0]))
+        self.sbvj_lineEdit_06.setText(str(df['체결강도차이'][0]))
+        self.sbvj_lineEdit_07.setText(str(df['평균시간'][0]))
+        self.sbvj_lineEdit_08.setText(str(df['거래대금차이'][0]))
+        self.sbvj_lineEdit_09.setText(str(df['체결강도하한'][0]))
+        self.sbvj_lineEdit_10.setText(str(df['누적거래대금하한'][0]))
+        self.sbvj_lineEdit_11.setText(str(df['등락율하한'][0]))
+        self.sbvj_lineEdit_12.setText(str(df['등락율상한'][0]))
+        self.sbvj_lineEdit_13.setText(str(df['청산수익률'][0]))
+        self.sbvj_lineEdit_14.setText(str(df['멀티프로세스'][0]))
 
     def ButtonClicked_12(self):
         if self.backtester_process is not None and self.backtester_process.poll() != 0:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '현재 백테스터가 실행중입니다.\n중복 실행할 수 없습니다.\n')
             return
         textfull = True
-        if self.sb_jcvj_lineEdit_01.text() == '':
+        if self.sbvj_lineEdit_01.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_02.text() == '':
+        elif self.sbvj_lineEdit_02.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_03.text() == '':
+        elif self.sbvj_lineEdit_03.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_04.text() == '':
+        elif self.sbvj_lineEdit_04.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_05.text() == '':
+        elif self.sbvj_lineEdit_05.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_06.text() == '':
+        elif self.sbvj_lineEdit_06.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_07.text() == '':
+        elif self.sbvj_lineEdit_07.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_08.text() == '':
+        elif self.sbvj_lineEdit_08.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_09.text() == '':
+        elif self.sbvj_lineEdit_09.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_10.text() == '':
+        elif self.sbvj_lineEdit_10.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_11.text() == '':
+        elif self.sbvj_lineEdit_11.text() == '':
             textfull = False
-        elif self.sb_jcvj_lineEdit_12.text() == '':
+        elif self.sbvj_lineEdit_12.text() == '':
+            textfull = False
+        elif self.sbvj_lineEdit_13.text() == '':
+            textfull = False
+        elif self.sbvj_lineEdit_14.text() == '':
             textfull = False
         if not textfull:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         self.backtester_process = subprocess.Popen(
             f'python {system_path}/backtester/backtester_stock_vj.py '
-            f'{self.sb_jcvj_lineEdit_01.text()} {self.sb_jcvj_lineEdit_02.text()} {self.sb_jcvj_lineEdit_03.text()} '
-            f'{self.sb_jcvj_lineEdit_04.text()} {self.sb_jcvj_lineEdit_05.text()} {self.sb_jcvj_lineEdit_06.text()} '
-            f'{self.sb_jcvj_lineEdit_07.text()} {self.sb_jcvj_lineEdit_08.text()} {self.sb_jcvj_lineEdit_09.text()} '
-            f'{self.sb_jcvj_lineEdit_10.text()} {self.sb_jcvj_lineEdit_11.text()} {self.sb_jcvj_lineEdit_12.text()}'
+            f'{self.sbvj_lineEdit_01.text()} {self.sbvj_lineEdit_02.text()} {self.sbvj_lineEdit_03.text()} '
+            f'{self.sbvj_lineEdit_04.text()} {self.sbvj_lineEdit_05.text()} {self.sbvj_lineEdit_06.text()} '
+            f'{self.sbvj_lineEdit_07.text()} {self.sbvj_lineEdit_08.text()} {self.sbvj_lineEdit_09.text()} '
+            f'{self.sbvj_lineEdit_10.text()} {self.sbvj_lineEdit_11.text()} {self.sbvj_lineEdit_12.text()} '
+            f'{self.sbvj_lineEdit_13.text()} {self.sbvj_lineEdit_14.text()}'
         )
 
     def ButtonClicked_13(self):
@@ -724,283 +770,295 @@ class Window(QtWidgets.QMainWindow):
         df = pd.read_sql('SELECT * FROM coinback_jjv', con)
         df = df.set_index('index')
         con.close()
-        self.cb_jjvc_lineEdit_01.setText(str(df['1'][0]))
-        self.cb_jjvc_lineEdit_02.setText(str(df['2'][0]))
-        self.cb_jjvc_lineEdit_03.setText(str(df['3'][0]))
-        self.cb_jjvc_lineEdit_04.setText(str(df['4'][0]))
-        self.cb_jjvc_lineEdit_05.setText(str(df['5'][0]))
-        self.cb_jjvc_lineEdit_06.setText(str(df['6'][0]))
-        self.cb_jjvc_lineEdit_07.setText(str(df['7'][0]))
-        self.cb_jjvc_lineEdit_08.setText(str(df['8'][0]))
-        self.cb_jjvc_lineEdit_09.setText(str(df['9'][0]))
-        self.cb_jjvc_lineEdit_10.setText(str(df['10'][0]))
-        self.cb_jjvc_lineEdit_11.setText(str(df['11'][0]))
-        self.cb_jjvc_lineEdit_12.setText(str(df['12'][0]))
-        self.cb_jjvc_lineEdit_13.setText(str(df['13'][0]))
-        self.cb_jjvc_lineEdit_14.setText(str(df['14'][0]))
-        self.cb_jjvc_lineEdit_15.setText(str(df['15'][0]))
-        self.cb_jjvc_lineEdit_16.setText(str(df['16'][0]))
-        self.cb_jjvc_lineEdit_17.setText(str(df['17'][0]))
-        self.cb_jjvc_lineEdit_18.setText(str(df['18'][0]))
-        self.cb_jjvc_lineEdit_19.setText(str(df['19'][0]))
-        self.cb_jjvc_lineEdit_20.setText(str(df['20'][0]))
-        self.cb_jjvc_lineEdit_21.setText(str(df['21'][0]))
-        self.cb_jjvc_lineEdit_22.setText(str(df['22'][0]))
-        self.cb_jjvc_lineEdit_23.setText(str(df['23'][0]))
-        self.cb_jjvc_lineEdit_24.setText(str(df['24'][0]))
-        self.cb_jjvc_lineEdit_25.setText(str(df['25'][0]))
-        self.cb_jjvc_lineEdit_26.setText(str(df['26'][0]))
-        self.cb_jjvc_lineEdit_27.setText(str(df['27'][0]))
-        self.cb_jjvc_lineEdit_28.setText(str(df['28'][0]))
-        self.cb_jjvc_lineEdit_29.setText(str(df['29'][0]))
-        self.cb_jjvc_lineEdit_30.setText(str(df['30'][0]))
-        self.cb_jjvc_lineEdit_31.setText(str(df['31'][0]))
-        self.cb_jjvc_lineEdit_32.setText(str(df['32'][0]))
-        self.cb_jjvc_lineEdit_33.setText(str(df['33'][0]))
-        self.cb_jjvc_lineEdit_34.setText(str(df['34'][0]))
-        self.cb_jjvc_lineEdit_35.setText(str(df['35'][0]))
-        self.cb_jjvc_lineEdit_36.setText(str(df['36'][0]))
-        self.cb_jjvc_lineEdit_37.setText(str(df['37'][0]))
-        self.cb_jjvc_lineEdit_38.setText(str(df['38'][0]))
-        self.cb_jjvc_lineEdit_39.setText(str(df['39'][0]))
-        self.cb_jjvc_lineEdit_40.setText(str(df['40'][0]))
-        self.cb_jjvc_lineEdit_41.setText(str(df['41'][0]))
-        self.cb_jjvc_lineEdit_42.setText(str(df['42'][0]))
-        self.cb_jjvc_lineEdit_43.setText(str(df['43'][0]))
-        self.cb_jjvc_lineEdit_44.setText(str(df['44'][0]))
-        self.cb_jjvc_lineEdit_45.setText(str(df['45'][0]))
+        self.cbvc_lineEdit_01.setText(str(df['1'][0]))
+        self.cbvc_lineEdit_02.setText(str(df['2'][0]))
+        self.cbvc_lineEdit_03.setText(str(df['3'][0]))
+        self.cbvc_lineEdit_04.setText(str(df['4'][0]))
+        self.cbvc_lineEdit_05.setText(str(df['5'][0]))
+        self.cbvc_lineEdit_06.setText(str(df['6'][0]))
+        self.cbvc_lineEdit_07.setText(str(df['7'][0]))
+        self.cbvc_lineEdit_08.setText(str(df['8'][0]))
+        self.cbvc_lineEdit_09.setText(str(df['9'][0]))
+        self.cbvc_lineEdit_10.setText(str(df['10'][0]))
+        self.cbvc_lineEdit_11.setText(str(df['11'][0]))
+        self.cbvc_lineEdit_12.setText(str(df['12'][0]))
+        self.cbvc_lineEdit_13.setText(str(df['13'][0]))
+        self.cbvc_lineEdit_14.setText(str(df['14'][0]))
+        self.cbvc_lineEdit_15.setText(str(df['15'][0]))
+        self.cbvc_lineEdit_16.setText(str(df['16'][0]))
+        self.cbvc_lineEdit_17.setText(str(df['17'][0]))
+        self.cbvc_lineEdit_18.setText(str(df['18'][0]))
+        self.cbvc_lineEdit_19.setText(str(df['19'][0]))
+        self.cbvc_lineEdit_20.setText(str(df['20'][0]))
+        self.cbvc_lineEdit_21.setText(str(df['21'][0]))
+        self.cbvc_lineEdit_22.setText(str(df['22'][0]))
+        self.cbvc_lineEdit_23.setText(str(df['23'][0]))
+        self.cbvc_lineEdit_24.setText(str(df['24'][0]))
+        self.cbvc_lineEdit_25.setText(str(df['25'][0]))
+        self.cbvc_lineEdit_26.setText(str(df['26'][0]))
+        self.cbvc_lineEdit_27.setText(str(df['27'][0]))
+        self.cbvc_lineEdit_28.setText(str(df['28'][0]))
+        self.cbvc_lineEdit_29.setText(str(df['29'][0]))
+        self.cbvc_lineEdit_30.setText(str(df['30'][0]))
+        self.cbvc_lineEdit_31.setText(str(df['31'][0]))
+        self.cbvc_lineEdit_32.setText(str(df['32'][0]))
+        self.cbvc_lineEdit_33.setText(str(df['33'][0]))
+        self.cbvc_lineEdit_34.setText(str(df['34'][0]))
+        self.cbvc_lineEdit_35.setText(str(df['35'][0]))
+        self.cbvc_lineEdit_36.setText(str(df['36'][0]))
+        self.cbvc_lineEdit_37.setText(str(df['37'][0]))
+        self.cbvc_lineEdit_38.setText(str(df['38'][0]))
+        self.cbvc_lineEdit_39.setText(str(df['39'][0]))
+        self.cbvc_lineEdit_40.setText(str(df['40'][0]))
+        self.cbvc_lineEdit_41.setText(str(df['41'][0]))
+        self.cbvc_lineEdit_42.setText(str(df['42'][0]))
+        self.cbvc_lineEdit_43.setText(str(df['43'][0]))
+        self.cbvc_lineEdit_44.setText(str(df['44'][0]))
+        self.cbvc_lineEdit_45.setText(str(df['45'][0]))
+        self.cbvc_lineEdit_46.setText(str(df['46'][0]))
+        self.cbvc_lineEdit_47.setText(str(df['47'][0]))
 
     def ButtonClicked_14(self):
         if self.backtester_process is not None and self.backtester_process.poll() != 0:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '현재 백테스터가 실행중입니다.\n중복 실행할 수 없습니다.\n')
             return
         textfull = True
-        if self.cb_jjvc_lineEdit_01.text() == '':
+        if self.cbvc_lineEdit_01.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_02.text() == '':
+        elif self.cbvc_lineEdit_02.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_03.text() == '':
+        elif self.cbvc_lineEdit_03.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_04.text() == '':
+        elif self.cbvc_lineEdit_04.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_05.text() == '':
+        elif self.cbvc_lineEdit_05.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_06.text() == '':
+        elif self.cbvc_lineEdit_06.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_07.text() == '':
+        elif self.cbvc_lineEdit_07.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_08.text() == '':
+        elif self.cbvc_lineEdit_08.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_09.text() == '':
+        elif self.cbvc_lineEdit_09.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_10.text() == '':
+        elif self.cbvc_lineEdit_10.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_11.text() == '':
+        elif self.cbvc_lineEdit_11.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_12.text() == '':
+        elif self.cbvc_lineEdit_12.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_13.text() == '':
+        elif self.cbvc_lineEdit_13.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_14.text() == '':
+        elif self.cbvc_lineEdit_14.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_15.text() == '':
+        elif self.cbvc_lineEdit_15.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_16.text() == '':
+        elif self.cbvc_lineEdit_16.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_17.text() == '':
+        elif self.cbvc_lineEdit_17.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_18.text() == '':
+        elif self.cbvc_lineEdit_18.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_19.text() == '':
+        elif self.cbvc_lineEdit_19.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_20.text() == '':
+        elif self.cbvc_lineEdit_20.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_21.text() == '':
+        elif self.cbvc_lineEdit_21.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_22.text() == '':
+        elif self.cbvc_lineEdit_22.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_23.text() == '':
+        elif self.cbvc_lineEdit_23.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_24.text() == '':
+        elif self.cbvc_lineEdit_24.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_25.text() == '':
+        elif self.cbvc_lineEdit_25.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_26.text() == '':
+        elif self.cbvc_lineEdit_26.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_27.text() == '':
+        elif self.cbvc_lineEdit_27.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_28.text() == '':
+        elif self.cbvc_lineEdit_28.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_29.text() == '':
+        elif self.cbvc_lineEdit_29.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_30.text() == '':
+        elif self.cbvc_lineEdit_30.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_31.text() == '':
+        elif self.cbvc_lineEdit_31.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_32.text() == '':
+        elif self.cbvc_lineEdit_32.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_33.text() == '':
+        elif self.cbvc_lineEdit_33.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_34.text() == '':
+        elif self.cbvc_lineEdit_34.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_35.text() == '':
+        elif self.cbvc_lineEdit_35.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_36.text() == '':
+        elif self.cbvc_lineEdit_36.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_37.text() == '':
+        elif self.cbvc_lineEdit_37.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_38.text() == '':
+        elif self.cbvc_lineEdit_38.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_39.text() == '':
+        elif self.cbvc_lineEdit_39.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_40.text() == '':
+        elif self.cbvc_lineEdit_40.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_41.text() == '':
+        elif self.cbvc_lineEdit_41.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_42.text() == '':
+        elif self.cbvc_lineEdit_42.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_43.text() == '':
+        elif self.cbvc_lineEdit_43.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_44.text() == '':
+        elif self.cbvc_lineEdit_44.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_45.text() == '':
+        elif self.cbvc_lineEdit_45.text() == '':
+            textfull = False
+        elif self.cbvc_lineEdit_46.text() == '':
+            textfull = False
+        elif self.cbvc_lineEdit_47.text() == '':
             textfull = False
         if not textfull:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         self.backtester_process = subprocess.Popen(
             f'python {system_path}/backtester/backtester_coin_vc.py '
-            f'{self.cb_jjvc_lineEdit_01.text()} {self.cb_jjvc_lineEdit_02.text()} {self.cb_jjvc_lineEdit_03.text()} '
-            f'{self.cb_jjvc_lineEdit_04.text()} {self.cb_jjvc_lineEdit_05.text()} {self.cb_jjvc_lineEdit_06.text()} '
-            f'{self.cb_jjvc_lineEdit_07.text()} {self.cb_jjvc_lineEdit_08.text()} {self.cb_jjvc_lineEdit_09.text()} '
-            f'{self.cb_jjvc_lineEdit_10.text()} {self.cb_jjvc_lineEdit_11.text()} {self.cb_jjvc_lineEdit_12.text()} '
-            f'{self.cb_jjvc_lineEdit_13.text()} {self.cb_jjvc_lineEdit_14.text()} {self.cb_jjvc_lineEdit_15.text()} '
-            f'{self.cb_jjvc_lineEdit_16.text()} {self.cb_jjvc_lineEdit_17.text()} {self.cb_jjvc_lineEdit_18.text()} '
-            f'{self.cb_jjvc_lineEdit_19.text()} {self.cb_jjvc_lineEdit_20.text()} {self.cb_jjvc_lineEdit_21.text()} '
-            f'{self.cb_jjvc_lineEdit_22.text()} {self.cb_jjvc_lineEdit_23.text()} {self.cb_jjvc_lineEdit_24.text()} '
-            f'{self.cb_jjvc_lineEdit_25.text()} {self.cb_jjvc_lineEdit_26.text()} {self.cb_jjvc_lineEdit_27.text()} '
-            f'{self.cb_jjvc_lineEdit_28.text()} {self.cb_jjvc_lineEdit_29.text()} {self.cb_jjvc_lineEdit_30.text()} '
-            f'{self.cb_jjvc_lineEdit_31.text()} {self.cb_jjvc_lineEdit_32.text()} {self.cb_jjvc_lineEdit_33.text()} '
-            f'{self.cb_jjvc_lineEdit_34.text()} {self.cb_jjvc_lineEdit_35.text()} {self.cb_jjvc_lineEdit_36.text()} '
-            f'{self.cb_jjvc_lineEdit_37.text()} {self.cb_jjvc_lineEdit_38.text()} {self.cb_jjvc_lineEdit_39.text()} '
-            f'{self.cb_jjvc_lineEdit_40.text()} {self.cb_jjvc_lineEdit_41.text()} {self.cb_jjvc_lineEdit_42.text()} '
-            f'{self.cb_jjvc_lineEdit_43.text()} {self.cb_jjvc_lineEdit_44.text()} {self.cb_jjvc_lineEdit_45.text()}'
+            f'{self.cbvc_lineEdit_01.text()} {self.cbvc_lineEdit_02.text()} {self.cbvc_lineEdit_03.text()} '
+            f'{self.cbvc_lineEdit_04.text()} {self.cbvc_lineEdit_05.text()} {self.cbvc_lineEdit_06.text()} '
+            f'{self.cbvc_lineEdit_07.text()} {self.cbvc_lineEdit_08.text()} {self.cbvc_lineEdit_09.text()} '
+            f'{self.cbvc_lineEdit_10.text()} {self.cbvc_lineEdit_11.text()} {self.cbvc_lineEdit_12.text()} '
+            f'{self.cbvc_lineEdit_13.text()} {self.cbvc_lineEdit_14.text()} {self.cbvc_lineEdit_15.text()} '
+            f'{self.cbvc_lineEdit_16.text()} {self.cbvc_lineEdit_17.text()} {self.cbvc_lineEdit_18.text()} '
+            f'{self.cbvc_lineEdit_19.text()} {self.cbvc_lineEdit_20.text()} {self.cbvc_lineEdit_21.text()} '
+            f'{self.cbvc_lineEdit_22.text()} {self.cbvc_lineEdit_23.text()} {self.cbvc_lineEdit_24.text()} '
+            f'{self.cbvc_lineEdit_25.text()} {self.cbvc_lineEdit_26.text()} {self.cbvc_lineEdit_27.text()} '
+            f'{self.cbvc_lineEdit_28.text()} {self.cbvc_lineEdit_29.text()} {self.cbvc_lineEdit_30.text()} '
+            f'{self.cbvc_lineEdit_31.text()} {self.cbvc_lineEdit_32.text()} {self.cbvc_lineEdit_33.text()} '
+            f'{self.cbvc_lineEdit_34.text()} {self.cbvc_lineEdit_35.text()} {self.cbvc_lineEdit_36.text()} '
+            f'{self.cbvc_lineEdit_37.text()} {self.cbvc_lineEdit_38.text()} {self.cbvc_lineEdit_39.text()} '
+            f'{self.cbvc_lineEdit_40.text()} {self.cbvc_lineEdit_41.text()} {self.cbvc_lineEdit_42.text()} '
+            f'{self.cbvc_lineEdit_43.text()} {self.cbvc_lineEdit_44.text()} {self.cbvc_lineEdit_45.text()} '
+            f'{self.cbvc_lineEdit_46.text()} {self.cbvc_lineEdit_47.text()}'
         )
 
     def ButtonClicked_15(self):
         textfull = True
-        if self.cb_jjvc_lineEdit_01.text() == '':
+        if self.cbvc_lineEdit_01.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_02.text() == '':
+        elif self.cbvc_lineEdit_02.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_03.text() == '':
+        elif self.cbvc_lineEdit_03.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_04.text() == '':
+        elif self.cbvc_lineEdit_04.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_05.text() == '':
+        elif self.cbvc_lineEdit_05.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_06.text() == '':
+        elif self.cbvc_lineEdit_06.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_07.text() == '':
+        elif self.cbvc_lineEdit_07.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_08.text() == '':
+        elif self.cbvc_lineEdit_08.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_09.text() == '':
+        elif self.cbvc_lineEdit_09.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_10.text() == '':
+        elif self.cbvc_lineEdit_10.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_11.text() == '':
+        elif self.cbvc_lineEdit_11.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_12.text() == '':
+        elif self.cbvc_lineEdit_12.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_13.text() == '':
+        elif self.cbvc_lineEdit_13.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_14.text() == '':
+        elif self.cbvc_lineEdit_14.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_15.text() == '':
+        elif self.cbvc_lineEdit_15.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_16.text() == '':
+        elif self.cbvc_lineEdit_16.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_17.text() == '':
+        elif self.cbvc_lineEdit_17.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_18.text() == '':
+        elif self.cbvc_lineEdit_18.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_19.text() == '':
+        elif self.cbvc_lineEdit_19.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_20.text() == '':
+        elif self.cbvc_lineEdit_20.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_21.text() == '':
+        elif self.cbvc_lineEdit_21.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_22.text() == '':
+        elif self.cbvc_lineEdit_22.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_23.text() == '':
+        elif self.cbvc_lineEdit_23.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_24.text() == '':
+        elif self.cbvc_lineEdit_24.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_25.text() == '':
+        elif self.cbvc_lineEdit_25.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_26.text() == '':
+        elif self.cbvc_lineEdit_26.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_27.text() == '':
+        elif self.cbvc_lineEdit_27.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_28.text() == '':
+        elif self.cbvc_lineEdit_28.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_29.text() == '':
+        elif self.cbvc_lineEdit_29.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_30.text() == '':
+        elif self.cbvc_lineEdit_30.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_31.text() == '':
+        elif self.cbvc_lineEdit_31.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_32.text() == '':
+        elif self.cbvc_lineEdit_32.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_33.text() == '':
+        elif self.cbvc_lineEdit_33.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_34.text() == '':
+        elif self.cbvc_lineEdit_34.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_35.text() == '':
+        elif self.cbvc_lineEdit_35.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_36.text() == '':
+        elif self.cbvc_lineEdit_36.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_37.text() == '':
+        elif self.cbvc_lineEdit_37.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_38.text() == '':
+        elif self.cbvc_lineEdit_38.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_39.text() == '':
+        elif self.cbvc_lineEdit_39.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_40.text() == '':
+        elif self.cbvc_lineEdit_40.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_41.text() == '':
+        elif self.cbvc_lineEdit_41.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_42.text() == '':
+        elif self.cbvc_lineEdit_42.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_43.text() == '':
+        elif self.cbvc_lineEdit_43.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_44.text() == '':
+        elif self.cbvc_lineEdit_44.text() == '':
             textfull = False
-        elif self.cb_jjvc_lineEdit_45.text() == '':
+        elif self.cbvc_lineEdit_45.text() == '':
+            textfull = False
+        elif self.cbvc_lineEdit_46.text() == '':
+            textfull = False
+        elif self.cbvc_lineEdit_47.text() == '':
             textfull = False
         if not textfull:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         data = [
-            self.cb_jjvc_lineEdit_01.text(), self.cb_jjvc_lineEdit_02.text(), self.cb_jjvc_lineEdit_03.text(),
-            self.cb_jjvc_lineEdit_04.text(), self.cb_jjvc_lineEdit_05.text(), self.cb_jjvc_lineEdit_06.text(),
-            self.cb_jjvc_lineEdit_07.text(), self.cb_jjvc_lineEdit_08.text(), self.cb_jjvc_lineEdit_09.text(),
-            self.cb_jjvc_lineEdit_10.text(), self.cb_jjvc_lineEdit_11.text(), self.cb_jjvc_lineEdit_12.text(),
-            self.cb_jjvc_lineEdit_13.text(), self.cb_jjvc_lineEdit_14.text(), self.cb_jjvc_lineEdit_15.text(),
-            self.cb_jjvc_lineEdit_16.text(), self.cb_jjvc_lineEdit_17.text(), self.cb_jjvc_lineEdit_18.text(),
-            self.cb_jjvc_lineEdit_19.text(), self.cb_jjvc_lineEdit_20.text(), self.cb_jjvc_lineEdit_21.text(),
-            self.cb_jjvc_lineEdit_22.text(), self.cb_jjvc_lineEdit_23.text(), self.cb_jjvc_lineEdit_24.text(),
-            self.cb_jjvc_lineEdit_25.text(), self.cb_jjvc_lineEdit_26.text(), self.cb_jjvc_lineEdit_27.text(),
-            self.cb_jjvc_lineEdit_28.text(), self.cb_jjvc_lineEdit_29.text(), self.cb_jjvc_lineEdit_30.text(),
-            self.cb_jjvc_lineEdit_31.text(), self.cb_jjvc_lineEdit_32.text(), self.cb_jjvc_lineEdit_33.text(),
-            self.cb_jjvc_lineEdit_34.text(), self.cb_jjvc_lineEdit_35.text(), self.cb_jjvc_lineEdit_36.text(),
-            self.cb_jjvc_lineEdit_37.text(), self.cb_jjvc_lineEdit_38.text(), self.cb_jjvc_lineEdit_39.text(),
-            self.cb_jjvc_lineEdit_40.text(), self.cb_jjvc_lineEdit_41.text(), self.cb_jjvc_lineEdit_42.text(),
-            self.cb_jjvc_lineEdit_43.text(), self.cb_jjvc_lineEdit_44.text(), self.cb_jjvc_lineEdit_45.text()
+            self.cbvc_lineEdit_01.text(), self.cbvc_lineEdit_02.text(), self.cbvc_lineEdit_03.text(),
+            self.cbvc_lineEdit_04.text(), self.cbvc_lineEdit_05.text(), self.cbvc_lineEdit_06.text(),
+            self.cbvc_lineEdit_07.text(), self.cbvc_lineEdit_08.text(), self.cbvc_lineEdit_09.text(),
+            self.cbvc_lineEdit_10.text(), self.cbvc_lineEdit_11.text(), self.cbvc_lineEdit_12.text(),
+            self.cbvc_lineEdit_13.text(), self.cbvc_lineEdit_14.text(), self.cbvc_lineEdit_15.text(),
+            self.cbvc_lineEdit_16.text(), self.cbvc_lineEdit_17.text(), self.cbvc_lineEdit_18.text(),
+            self.cbvc_lineEdit_19.text(), self.cbvc_lineEdit_20.text(), self.cbvc_lineEdit_21.text(),
+            self.cbvc_lineEdit_22.text(), self.cbvc_lineEdit_23.text(), self.cbvc_lineEdit_24.text(),
+            self.cbvc_lineEdit_25.text(), self.cbvc_lineEdit_26.text(), self.cbvc_lineEdit_27.text(),
+            self.cbvc_lineEdit_28.text(), self.cbvc_lineEdit_29.text(), self.cbvc_lineEdit_30.text(),
+            self.cbvc_lineEdit_31.text(), self.cbvc_lineEdit_32.text(), self.cbvc_lineEdit_33.text(),
+            self.cbvc_lineEdit_34.text(), self.cbvc_lineEdit_35.text(), self.cbvc_lineEdit_36.text(),
+            self.cbvc_lineEdit_37.text(), self.cbvc_lineEdit_38.text(), self.cbvc_lineEdit_39.text(),
+            self.cbvc_lineEdit_40.text(), self.cbvc_lineEdit_41.text(), self.cbvc_lineEdit_42.text(),
+            self.cbvc_lineEdit_43.text(), self.cbvc_lineEdit_44.text(), self.cbvc_lineEdit_45.text(),
+            self.cbvc_lineEdit_46.text(), self.cbvc_lineEdit_47.text()
         ]
         columns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-                   26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]
+                   26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47]
         df = pd.DataFrame([data], columns=columns, index=[0])
         queryQ.put([1, df, 'coinback_jjv', 'replace'])
 
@@ -1009,57 +1067,64 @@ class Window(QtWidgets.QMainWindow):
         df = pd.read_sql('SELECT * FROM coin', con)
         df = df.set_index('index')
         con.close()
-        self.cb_jjvj_lineEdit_01.setText('5')
-        self.cb_jjvj_lineEdit_02.setText('14')
-        self.cb_jjvj_lineEdit_03.setText('1008000')
-        self.cb_jjvj_lineEdit_04.setText(str(df['체결강도차이'][0]))
-        self.cb_jjvj_lineEdit_05.setText(str(df['평균시간'][0]))
-        self.cb_jjvj_lineEdit_06.setText(str(df['거래대금차이'][0]))
-        self.cb_jjvj_lineEdit_07.setText(str(df['체결강도하한'][0]))
-        self.cb_jjvj_lineEdit_08.setText(str(df['누적거래대금하한'][0]))
-        self.cb_jjvj_lineEdit_09.setText(str(df['등락율하한'][0]))
-        self.cb_jjvj_lineEdit_10.setText(str(df['등락율상한'][0]))
-        self.cb_jjvj_lineEdit_11.setText(str(df['청산수익률'][0]))
-        self.cb_jjvj_lineEdit_12.setText('6')
+        self.cbvj_lineEdit_01.setText(str(df['종목당투자금'][0]))
+        self.cbvj_lineEdit_02.setText(str(df['백테스팅기간'][0]))
+        self.cbvj_lineEdit_03.setText(str(df['백테스팅시간'][0]))
+        self.cbvj_lineEdit_04.setText(str(df['시작시간'][0]))
+        self.cbvj_lineEdit_05.setText(str(df['종료시간'][0]))
+        self.cbvj_lineEdit_06.setText(str(df['체결강도차이'][0]))
+        self.cbvj_lineEdit_07.setText(str(df['평균시간'][0]))
+        self.cbvj_lineEdit_08.setText(str(df['거래대금차이'][0]))
+        self.cbvj_lineEdit_09.setText(str(df['체결강도하한'][0]))
+        self.cbvj_lineEdit_10.setText(str(df['누적거래대금하한'][0]))
+        self.cbvj_lineEdit_11.setText(str(df['등락율하한'][0]))
+        self.cbvj_lineEdit_12.setText(str(df['등락율상한'][0]))
+        self.cbvj_lineEdit_13.setText(str(df['청산수익률'][0]))
+        self.cbvj_lineEdit_14.setText(str(df['멀티프로세스'][0]))
 
     def ButtonClicked_17(self):
         if self.backtester_process is not None and self.backtester_process.poll() != 0:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '현재 백테스터가 실행중입니다.\n중복 실행할 수 없습니다.\n')
             return
         textfull = True
-        if self.cb_jjvj_lineEdit_01.text() == '':
+        if self.cbvj_lineEdit_01.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_02.text() == '':
+        elif self.cbvj_lineEdit_02.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_03.text() == '':
+        elif self.cbvj_lineEdit_03.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_04.text() == '':
+        elif self.cbvj_lineEdit_04.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_05.text() == '':
+        elif self.cbvj_lineEdit_05.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_06.text() == '':
+        elif self.cbvj_lineEdit_06.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_07.text() == '':
+        elif self.cbvj_lineEdit_07.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_08.text() == '':
+        elif self.cbvj_lineEdit_08.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_09.text() == '':
+        elif self.cbvj_lineEdit_09.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_10.text() == '':
+        elif self.cbvj_lineEdit_10.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_11.text() == '':
+        elif self.cbvj_lineEdit_11.text() == '':
             textfull = False
-        elif self.cb_jjvj_lineEdit_12.text() == '':
+        elif self.cbvj_lineEdit_12.text() == '':
+            textfull = False
+        elif self.cbvj_lineEdit_13.text() == '':
+            textfull = False
+        elif self.cbvj_lineEdit_14.text() == '':
             textfull = False
         if not textfull:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         self.backtester_process = subprocess.Popen(
             f'python {system_path}/backtester/backtester_coin_vj.py '
-            f'{self.cb_jjvj_lineEdit_01.text()} {self.cb_jjvj_lineEdit_02.text()} {self.cb_jjvj_lineEdit_03.text()} '
-            f'{self.cb_jjvj_lineEdit_04.text()} {self.cb_jjvj_lineEdit_05.text()} {self.cb_jjvj_lineEdit_06.text()} '
-            f'{self.cb_jjvj_lineEdit_07.text()} {self.cb_jjvj_lineEdit_08.text()} {self.cb_jjvj_lineEdit_09.text()} '
-            f'{self.cb_jjvj_lineEdit_10.text()} {self.cb_jjvj_lineEdit_11.text()} {self.cb_jjvj_lineEdit_12.text()}'
+            f'{self.cbvj_lineEdit_01.text()} {self.cbvj_lineEdit_02.text()} {self.cbvj_lineEdit_03.text()} '
+            f'{self.cbvj_lineEdit_04.text()} {self.cbvj_lineEdit_05.text()} {self.cbvj_lineEdit_06.text()} '
+            f'{self.cbvj_lineEdit_07.text()} {self.cbvj_lineEdit_08.text()} {self.cbvj_lineEdit_09.text()} '
+            f'{self.cbvj_lineEdit_10.text()} {self.cbvj_lineEdit_11.text()} {self.cbvj_lineEdit_12.text()} '
+            f'{self.cbvj_lineEdit_13.text()} {self.cbvj_lineEdit_14.text()}'
         )
 
     def ButtonClicked_18(self):
@@ -1072,6 +1137,8 @@ class Window(QtWidgets.QMainWindow):
             self.sj_main_checkBox_02.setChecked(True) if df['키움트레이더'][0] else self.sj_main_checkBox_02.setChecked(False)
             self.sj_main_checkBox_03.setChecked(True) if df['업비트콜렉터'][0] else self.sj_main_checkBox_03.setChecked(False)
             self.sj_main_checkBox_04.setChecked(True) if df['업비트트레이더'][0] else self.sj_main_checkBox_04.setChecked(False)
+            self.sj_main_checkBox_05.setChecked(True) if df['백테스터'][0] else self.sj_main_checkBox_05.setChecked(False)
+            self.sj_main_lineEdit_01.setText(str(df['시작시간'][0]))
             self.UpdateTexedit([ui_num['설정텍스트'], '시스템 기본 설정값 불러오기 완료'])
         else:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '시스템 기본 설정값이\n존재하지 않습니다.\n')
@@ -1126,14 +1193,21 @@ class Window(QtWidgets.QMainWindow):
         if len(df) > 0:
             self.sj_stock_checkBox_01.setChecked(True) if df['모의투자'][0] else self.sj_stock_checkBox_01.setChecked(False)
             self.sj_stock_checkBox_02.setChecked(True) if df['알림소리'][0] else self.sj_stock_checkBox_02.setChecked(False)
-            self.sj_stock_lineEdit_01.setText(str(df['체결강도차이'][0]))
-            self.sj_stock_lineEdit_02.setText(str(df['평균시간'][0]))
-            self.sj_stock_lineEdit_03.setText(str(df['거래대금차이'][0]))
-            self.sj_stock_lineEdit_04.setText(str(df['체결강도하한'][0]))
-            self.sj_stock_lineEdit_05.setText(str(df['누적거래대금하한'][0]))
-            self.sj_stock_lineEdit_06.setText(str(df['등락율하한'][0]))
-            self.sj_stock_lineEdit_07.setText(str(df['등락율상한'][0]))
-            self.sj_stock_lineEdit_08.setText(str(df['청산수익률'][0]))
+            self.sj_stock_lineEdit_01.setText(str(df['버전업'][0]))
+            self.sj_stock_lineEdit_02.setText(str(df['자동로그인2'][0]))
+            self.sj_stock_lineEdit_03.setText(str(df['콜렉터'][0]))
+            self.sj_stock_lineEdit_04.setText(str(df['자동로그인1'][0]))
+            self.sj_stock_lineEdit_05.setText(str(df['트레이더'][0]))
+            self.sj_stock_lineEdit_06.setText(str(df['전략시작'][0]))
+            self.sj_stock_lineEdit_07.setText(str(df['전략종료'][0]))
+            self.sj_stock_lineEdit_08.setText(str(df['체결강도차이'][0]))
+            self.sj_stock_lineEdit_09.setText(str(df['평균시간'][0]))
+            self.sj_stock_lineEdit_10.setText(str(df['거래대금차이'][0]))
+            self.sj_stock_lineEdit_11.setText(str(df['체결강도하한'][0]))
+            self.sj_stock_lineEdit_12.setText(str(df['누적거래대금하한'][0]))
+            self.sj_stock_lineEdit_13.setText(str(df['등락율하한'][0]))
+            self.sj_stock_lineEdit_14.setText(str(df['등락율상한'][0]))
+            self.sj_stock_lineEdit_15.setText(str(df['청산수익률'][0]))
             self.UpdateTexedit([ui_num['설정텍스트'], '주식 전략 설정값 불러오기 완료'])
         else:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '주식 전략 설정값이\n존재하지 않습니다.\n')
@@ -1163,9 +1237,14 @@ class Window(QtWidgets.QMainWindow):
         kt = 1 if self.sj_main_checkBox_02.isChecked() else 0
         cc = 1 if self.sj_main_checkBox_03.isChecked() else 0
         ct = 1 if self.sj_main_checkBox_04.isChecked() else 0
-        df = pd.DataFrame([[kc, kt, cc, ct]], columns=columns_sm, index=[0])
-        queryQ.put([1, df, 'main', 'replace'])
-        self.UpdateTexedit([ui_num['설정텍스트'], '시스템 기본 설정값 저장하기 완료'])
+        bt = 1 if self.sj_main_checkBox_05.isChecked() else 0
+        t = self.sj_main_lineEdit_01.text()
+        if bt and t in ['0', '']:
+            QtWidgets.QMessageBox.critical(self, '오류 알림', '백테스터 시작시간이 입력되지 않았습니다.\n')
+        else:
+            df = pd.DataFrame([[kc, kt, cc, ct, bt, t]], columns=columns_sm, index=[0])
+            queryQ.put([1, df, 'main', 'replace'])
+            self.UpdateTexedit([ui_num['설정텍스트'], '시스템 기본 설정값 저장하기 완료'])
 
     def ButtonClicked_25(self):
         id1 = self.sj_sacc_lineEdit_01.text()
@@ -1177,7 +1256,7 @@ class Window(QtWidgets.QMainWindow):
         cp2 = self.sj_sacc_lineEdit_07.text()
         ap2 = self.sj_sacc_lineEdit_08.text()
         if id1 == '' or ps1 == '' or cp1 == '' or ap1 == '' or id2 == '' or ps2 == '' or cp2 == '' or ap2 == '':
-            QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
+            QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 설정값이 입력되지 않았습니다.\n')
         else:
             df = pd.DataFrame([[id1, ps1, cp1, ap1, id2, ps2, cp2, ap2]], columns=columns_sk, index=[0])
             queryQ.put([1, df, 'kiwoom', 'replace'])
@@ -1187,7 +1266,7 @@ class Window(QtWidgets.QMainWindow):
         access_key = self.sj_cacc_lineEdit_01.text()
         secret_key = self.sj_cacc_lineEdit_02.text()
         if access_key == '' or secret_key == '':
-            QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
+            QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 설정값이 입력되지 않았습니다.\n')
         else:
             df = pd.DataFrame([[access_key, secret_key]], columns=columns_sc, index=[0])
             queryQ.put([1, df, 'upbit', 'replace'])
@@ -1197,7 +1276,7 @@ class Window(QtWidgets.QMainWindow):
         str_bot = self.sj_tele_lineEdit_01.text()
         int_id = self.sj_tele_lineEdit_02.text()
         if str_bot == '' or int_id == '':
-            QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
+            QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 설정값이 입력되지 않았습니다.\n')
         else:
             df = pd.DataFrame([[str_bot, int_id]], columns=columns_st, index=[0])
             queryQ.put([1, df, 'telegram', 'replace'])
@@ -1218,10 +1297,10 @@ class Window(QtWidgets.QMainWindow):
                 dmlow == '' or plow == '' or phigh == '' or csper == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
         else:
-            data = [me, sd, float(gapch), int(avgtime), int(gapsm), float(chlow),
-                    int(dmlow), float(plow), float(phigh), float(csper)]
-            df = pd.DataFrame([data], columns=columns_ss, index=[0])
-            queryQ.put([1, df, 'stock', 'replace'])
+            query = f"UPDATE stock SET 모의투자 = {me}, 알림소리 = {sd}, 체결강도차이 = {gapch},"\
+                    f"평균시간 = {avgtime}, 거래대금차이 = {gapsm}, 체결강도하한 = {chlow}, 누적거래대금하한 = {dmlow},"\
+                    f"등락율하한 = {plow}, 등락율상한 = {phigh}, 청산수익률 = {csper}"
+            queryQ.put([1, query])
             self.UpdateTexedit([ui_num['설정텍스트'], '주식 전략 설정값 저장하기 완료'])
 
     def ButtonClicked_29(self):
@@ -1239,10 +1318,10 @@ class Window(QtWidgets.QMainWindow):
                 dmlow == '' or plow == '' or phigh == '' or csper == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
         else:
-            data = [me, sd, float(gapch), int(avgtime), int(gapsm), float(chlow),
-                    int(dmlow), float(plow), float(phigh), float(csper)]
-            df = pd.DataFrame([data], columns=columns_ss, index=[0])
-            queryQ.put([1, df, 'coin', 'replace'])
+            query = f"UPDATE coin SET 모의투자 = {me}, 알림소리 = {sd}, 체결강도차이 = {gapch},"\
+                    f"평균시간 = {avgtime}, 거래대금차이 = {gapsm}, 체결강도하한 = {chlow}, 누적거래대금하한 = {dmlow},"\
+                    f"등락율하한 = {plow}, 등락율상한 = {phigh}, 청산수익률 = {csper}"
+            queryQ.put([1, query])
             self.UpdateTexedit([ui_num['설정텍스트'], '코인 전략 설정값 저장하기 완료'])
 
     def UpdateTexedit(self, data):
@@ -1267,24 +1346,42 @@ class Window(QtWidgets.QMainWindow):
         df = data[1]
 
         tableWidget = None
-        if gubun == ui_num['실현손익']:
-            tableWidget = self.tt_tableWidget
-        elif gubun == ui_num['거래목록']:
-            tableWidget = self.td_tableWidget
-        elif gubun == ui_num['잔고평가']:
-            tableWidget = self.tj_tableWidget
-        elif gubun == ui_num['잔고목록']:
-            tableWidget = self.jg_tableWidget
-        elif gubun == ui_num['체결목록']:
-            tableWidget = self.cj_tableWidget
-        elif gubun == ui_num['당일합계']:
-            tableWidget = self.dt_tableWidget
-        elif gubun == ui_num['당일상세']:
-            tableWidget = self.ds_tableWidget
-        elif gubun == ui_num['누적합계']:
-            tableWidget = self.nt_tableWidget
-        elif gubun == ui_num['누적상세']:
-            tableWidget = self.ns_tableWidget
+        if gubun == ui_num['S실현손익']:
+            tableWidget = self.stt_tableWidget
+        elif gubun == ui_num['S거래목록']:
+            tableWidget = self.std_tableWidget
+        elif gubun == ui_num['S잔고평가']:
+            tableWidget = self.stj_tableWidget
+        elif gubun == ui_num['S잔고목록']:
+            tableWidget = self.sjg_tableWidget
+        elif gubun == ui_num['S체결목록']:
+            tableWidget = self.scj_tableWidget
+        elif gubun == ui_num['S당일합계']:
+            tableWidget = self.sdt_tableWidget
+        elif gubun == ui_num['S당일상세']:
+            tableWidget = self.sds_tableWidget
+        elif gubun == ui_num['S누적합계']:
+            tableWidget = self.snt_tableWidget
+        elif gubun == ui_num['S누적상세']:
+            tableWidget = self.sns_tableWidget
+        if gubun == ui_num['C실현손익']:
+            tableWidget = self.ctt_tableWidget
+        elif gubun == ui_num['C거래목록']:
+            tableWidget = self.ctd_tableWidget
+        elif gubun == ui_num['C잔고평가']:
+            tableWidget = self.ctj_tableWidget
+        elif gubun == ui_num['C잔고목록']:
+            tableWidget = self.cjg_tableWidget
+        elif gubun == ui_num['C체결목록']:
+            tableWidget = self.ccj_tableWidget
+        elif gubun == ui_num['C당일합계']:
+            tableWidget = self.cdt_tableWidget
+        elif gubun == ui_num['C당일상세']:
+            tableWidget = self.cds_tableWidget
+        elif gubun == ui_num['C누적합계']:
+            tableWidget = self.cnt_tableWidget
+        elif gubun == ui_num['C누적상세']:
+            tableWidget = self.cns_tableWidget
         if tableWidget is None:
             return
 
@@ -1324,7 +1421,7 @@ class Window(QtWidgets.QMainWindow):
                         item.setForeground(color_fg_bt)
                     else:
                         item.setForeground(color_fg_dk)
-                elif gubun == ui_num['체결목록']:
+                elif gubun in [ui_num['S체결목록'], ui_num['C체결목록']]:
                     if df['주문구분'][index] == '매수':
                         item.setForeground(color_fg_bt)
                     elif df['주문구분'][index] == '매도':
@@ -1333,47 +1430,53 @@ class Window(QtWidgets.QMainWindow):
                         item.setForeground(color_fg_bc)
                 tableWidget.setItem(j, i, item)
 
-        if len(df) < 13 and gubun in [ui_num['거래목록'], ui_num['잔고목록']]:
+        if len(df) < 13 and gubun in [ui_num['S거래목록'], ui_num['S잔고목록'], ui_num['C거래목록'], ui_num['C잔고목록']]:
             tableWidget.setRowCount(13)
-        elif len(df) < 15 and gubun == ui_num['체결목록']:
+        elif len(df) < 15 and gubun in [ui_num['S체결목록'], ui_num['C체결목록']]:
             tableWidget.setRowCount(15)
-        elif len(df) < 19 and gubun == ui_num['당일상세']:
+        elif len(df) < 19 and gubun in [ui_num['S당일상세'], ui_num['C당일상세']]:
             tableWidget.setRowCount(19)
-        elif len(df) < 28 and gubun == ui_num['누적상세']:
+        elif len(df) < 28 and gubun in [ui_num['S누적상세'], ui_num['C누적상세']]:
             tableWidget.setRowCount(28)
 
     def UpdateGaonsimJongmok(self, data):
+        gubun = data[0]
         dict_df = data[1]
 
-        tn = 1 if 80000 < int(strf_time('%H%M%S')) < 100000 else 2
+        if gubun == ui_num['S관심종목']:
+            tn = 1
+            gj_tableWidget = self.sgj_tableWidget
+        else:
+            tn = 2
+            gj_tableWidget = self.cgj_tableWidget
 
         if len(dict_df) == 0:
-            self.gj_tableWidget.clearContents()
+            gj_tableWidget.clearContents()
             return
 
-        self.gj_tableWidget.setRowCount(len(dict_df))
+        gj_tableWidget.setRowCount(len(dict_df))
         for j, code in enumerate(list(dict_df.keys())):
             try:
                 item = QtWidgets.QTableWidgetItem(self.dict_name[code])
             except KeyError:
                 item = QtWidgets.QTableWidgetItem(code)
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-            self.gj_tableWidget.setItem(j, 0, item)
+            gj_tableWidget.setItem(j, 0, item)
 
             smavg = dict_df[code]['거래대금'][self.dict_intg[f'평균시간{tn}'] + 1]
             item = QtWidgets.QTableWidgetItem(changeFormat(smavg).split('.')[0])
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignRight)
-            self.gj_tableWidget.setItem(j, columns_gj3.index('smavg'), item)
+            gj_tableWidget.setItem(j, columns_gj3.index('smavg'), item)
 
             chavg = dict_df[code]['체결강도'][self.dict_intg[f'평균시간{tn}'] + 1]
             item = QtWidgets.QTableWidgetItem(changeFormat(chavg))
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignRight)
-            self.gj_tableWidget.setItem(j, columns_gj3.index('chavg'), item)
+            gj_tableWidget.setItem(j, columns_gj3.index('chavg'), item)
 
             chhigh = dict_df[code]['최고체결강도'][self.dict_intg[f'평균시간{tn}'] + 1]
             item = QtWidgets.QTableWidgetItem(changeFormat(chhigh))
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignRight)
-            self.gj_tableWidget.setItem(j, columns_gj3.index('chhigh'), item)
+            gj_tableWidget.setItem(j, columns_gj3.index('chhigh'), item)
 
             for i, column in enumerate(columns_gj2):
                 if column in ['거래대금', '누적거래대금']:
@@ -1408,15 +1511,20 @@ class Window(QtWidgets.QMainWindow):
                         item.setForeground(color_fg_bt)
                     else:
                         item.setForeground(color_fg_dk)
-                self.gj_tableWidget.setItem(j, i + 1, item)
+                gj_tableWidget.setItem(j, i + 1, item)
 
         if len(dict_df) < 15:
-            self.gj_tableWidget.setRowCount(15)
+            gj_tableWidget.setRowCount(15)
 
-    def CalendarClicked(self):
-        searchday = self.calendarWidget.selectedDate().toString('yyyyMMdd')
+    def CalendarClicked(self, gubun):
+        if gubun == 'S':
+            table = 's_tradelist'
+            searchday = self.s_calendarWidget.selectedDate().toString('yyyyMMdd')
+        else:
+            table = 'c_tradelist'
+            searchday = self.c_calendarWidget.selectedDate().toString('yyyyMMdd')
         con = sqlite3.connect(db_tradelist)
-        df = pd.read_sql(f"SELECT * FROM tradelist WHERE 체결시간 LIKE '{searchday}%'", con)
+        df = pd.read_sql(f"SELECT * FROM {table} WHERE 체결시간 LIKE '{searchday}%'", con)
         con.close()
         if len(df) > 0:
             df = df.set_index('index')
@@ -1430,8 +1538,8 @@ class Window(QtWidgets.QMainWindow):
         else:
             df = pd.DataFrame(columns=columns_dt)
             df2 = pd.DataFrame(columns=columns_dd)
-        self.UpdateTablewidget([ui_num['당일합계'], df2])
-        self.UpdateTablewidget([ui_num['당일상세'], df])
+        self.UpdateTablewidget([ui_num[f'{gubun}당일합계'], df2])
+        self.UpdateTablewidget([ui_num[f'{gubun}당일상세'], df])
 
     def closeEvent(self, a):
         buttonReply = QtWidgets.QMessageBox.question(
@@ -1466,6 +1574,10 @@ class Writer(QtCore.QThread):
             elif data[0] < 20:
                 self.data2.emit(data)
             elif data[0] == 20:
+                self.data3.emit(data)
+            elif data[0] < 30:
+                self.data2.emit(data)
+            elif data[0] == 30:
                 self.data3.emit(data)
 
 
