@@ -5,7 +5,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from multiprocessing import Process, Queue
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from utility.static import now, strf_time, timedelta_day
+from utility.static import now, strf_time, timedelta_day, strp_time, timedelta_sec
 from utility.setting import DB_SETTING, DB_BACKTEST, DB_COIN_TICK, GRAPH_PATH
 
 
@@ -361,9 +361,12 @@ class Total:
             plt.savefig(f"{GRAPH_PATH}/C{strf_time('%Y%m%d')}_2.png")
             conn = sqlite3.connect(DB_SETTING)
             cur = conn.cursor()
-            query = f"UPDATE coin SET 체결강도차이 = {self.gap_ch}, 평균시간 = {self.avg_time}, "\
-                    f"거래대금차이 = {self.gap_sm}, 체결강도하한 = {self.ch_low}, 누적거래대금하한 = {self.dm_low}, "\
-                    f"등락율하한 = {self.per_low}, 등락율상한 = {self.per_high}, 청산수익률 = {self.cs_per}"
+
+            query = f"UPDATE coin SET 종목당투자금 = {self.batting}, 백테스팅기간 = {self.testperiod}, "\
+                    f"백테스팅시간 = {self.totaltime}, 시작시간 = {self.starttime}, 종료시간 = {self.endtime}, "\
+                    f"체결강도차이 = {self.gap_ch}, 평균시간 = {self.avg_time}, 거래대금차이 = {self.gap_sm}, "\
+                    f"체결강도하한 = {self.ch_low}, 누적거래대금하한 = {self.dm_low}, 등락율하한 = {self.per_low}, "\
+                    f"등락율상한 = {self.per_high}, 청산수익률 = {self.cs_per}"
             cur.execute(query)
             conn.commit()
             conn.close()
