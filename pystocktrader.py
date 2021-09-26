@@ -1304,11 +1304,11 @@ class Window(QtWidgets.QMainWindow):
                 avgtime == '' or gapsm == '' or chlow == '' or dmlow == '' or plow == '' or phigh == '' or csper == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
         else:
-            df = pd.DataFrame(
-                [[me, sd, vu, alg2, cl, alg1, tr, ss, se, gapch, avgtime, gapsm, chlow, dmlow, plow, phigh, csper]],
-                columns=columns_ss, index=[0]
-            )
-            queryQ.put([1, df, 'stock', 'replace'])
+            query = f"UPDATE stock SET 모의투자 = {me}, 알림소리 = {sd}, 버전업 = {vu}, 자동로그인2 = {alg2}," \
+                    f"콜렉터 = {cl}, 자동로그인1 = {alg1}, 트레이더 = {tr}, 전략시작 = {ss}, 전략종료 = {se}," \
+                    f"체결강도차이 = {gapch}, 평균시간 = {avgtime}, 거래대금차이 = {gapsm}, 체결강도하한 = {chlow}," \
+                    f"누적거래대금하한 = {dmlow}, 등락율하한 = {plow}, 등락율상한 = {phigh}, 청산수익률 = {csper}"
+            queryQ.put([1, query])
             self.UpdateTexedit([ui_num['설정텍스트'], '주식 전략 설정값 저장하기 완료'])
 
     def ButtonClicked_29(self):
@@ -1326,11 +1326,10 @@ class Window(QtWidgets.QMainWindow):
                 dmlow == '' or plow == '' or phigh == '' or csper == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
         else:
-            df = pd.DataFrame(
-                [[me, sd, gapch, avgtime, gapsm, chlow, dmlow, plow, phigh, csper]],
-                columns=columns_sc, index=[0]
-            )
-            queryQ.put([1, df, 'coin', 'replace'])
+            query = f"UPDATE coin SET 모의투자 = {me}, 알림소리 = {sd}, 체결강도차이 = {gapch}, 평균시간 = {avgtime}," \
+                    f"거래대금차이 = {gapsm}, 체결강도하한 = {chlow}, 누적거래대금하한 = {dmlow}, 등락율하한 = {plow}," \
+                    f"등락율상한 = {phigh}, 청산수익률 = {csper}"
+            queryQ.put([1, query])
             self.UpdateTexedit([ui_num['설정텍스트'], '코인 전략 설정값 저장하기 완료'])
 
     def UpdateTexedit(self, data):
