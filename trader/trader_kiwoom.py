@@ -1,9 +1,7 @@
 import os
 import sys
 import time
-import sqlite3
 import pythoncom
-import pandas as pd
 from PyQt5 import QtWidgets
 from threading import Lock
 from PyQt5.QAxContainer import QAxWidget
