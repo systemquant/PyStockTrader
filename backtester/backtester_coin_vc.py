@@ -402,7 +402,7 @@ if __name__ == "__main__":
             w = Process(target=Total, args=(q, last, num))
             w.start()
             procs = []
-            workcount = int(last / int(sys.argv[45])) + 1
+            workcount = int(last / int(sys.argv[47])) + 1
             for j in range(0, last, workcount):
                 ticker_list = table_list[j:j + workcount]
                 p = Process(target=BackTester2Coin, args=(q, ticker_list, num, False))
@@ -478,7 +478,7 @@ if __name__ == "__main__":
     w = Process(target=Total, args=(q, last, num))
     w.start()
     procs = []
-    workcount = int(last / float(sys.argv[47])) + 1
+    workcount = int(last / int(sys.argv[47])) + 1
     for j in range(0, last, workcount):
         db_list = table_list[j:j + workcount]
         p = Process(target=BackTester2Coin, args=(q, db_list, num, True))

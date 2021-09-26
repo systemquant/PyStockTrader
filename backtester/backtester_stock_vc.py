@@ -400,7 +400,7 @@ if __name__ == "__main__":
             w = Process(target=Total, args=(q, last, num, df1))
             w.start()
             procs = []
-            workcount = int(last / int(sys.argv[45])) + 1
+            workcount = int(last / int(sys.argv[47])) + 1
             for j in range(0, last, workcount):
                 code_list = table_list[j:j + workcount]
                 p = Process(target=BackTester1Stock, args=(q, code_list, num, df3, False))
@@ -476,7 +476,7 @@ if __name__ == "__main__":
     w = Process(target=Total, args=(q, last, num, df1))
     w.start()
     procs = []
-    workcount = int(last / float(sys.argv[47])) + 1
+    workcount = int(last / int(sys.argv[47])) + 1
     for j in range(0, last, workcount):
         db_list = table_list[j:j + workcount]
         p = Process(target=BackTester1Stock, args=(q, db_list, num, df3, True))
