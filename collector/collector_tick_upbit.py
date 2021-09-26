@@ -6,7 +6,7 @@ from PyQt5.QtCore import QThread
 from pyupbit import WebSocketManager
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from utility.setting import ui_num
-from utility.static import now, timedelta_sec, timedelta_hour, strp_time
+from utility.static import now, timedelta_sec, timedelta_hour, strp_time, strf_time
 
 
 class UpdaterTickUpbit:
@@ -31,7 +31,7 @@ class UpdaterTickUpbit:
     def UpdateTickData(self, data_, receiv_time):
         ticker = data_['code']
         dt = data_['trade_date'] + data_['trade_time']
-        dt = timedelta_hour(9, strp_time('%Y%m%d%H%M%S', dt))
+        dt = strf_time('%Y%m%d%H%M%S', timedelta_hour(9, strp_time('%Y%m%d%H%M%S', dt)))
         if ticker not in self.dict_orderbook.keys():
             return
 
