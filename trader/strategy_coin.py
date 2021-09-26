@@ -1,10 +1,9 @@
 import os
 import sys
-import sqlite3
 import numpy as np
 import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from utility.setting import columns_gj1, ui_num, db_setting
+from utility.setting import columns_gj1, ui_num, DICT_SET
 from utility.static import now, timedelta_sec, strf_time, timedelta_hour
 
 
@@ -19,36 +18,10 @@ class StrategyCoin:
         self.list_sell = []
         self.dict_csan = {}     # key: 종목코드, value: datetime
         self.dict_gsjm = {}     # key: 종목코드, value: DataFrame
-        self.dict_intg = {
-            '체결강도차이': 0.,
-            '평균시간': 0,
-            '거래대금차이': 0,
-            '체결강도하한': 0.,
-            '누적거래대금하한': 0,
-            '등락율하한': 0.,
-            '등락율상한': 0.,
-            '청산수익률': 0.,
-
-            '스레드': 0,
-            '시피유': 0.,
-            '메모리': 0.
-        }
         self.dict_time = {'관심종목': now()}
         self.Start()
 
     def Start(self):
-        con = sqlite3.connect(db_setting)
-        df = pd.read_sql('SELECT * FROM coin', con)
-        df = df.set_index('index')
-        self.dict_intg['체결강도차이'] = df['체결강도차이'][0]
-        self.dict_intg['평균시간'] = df['평균시간'][0]
-        self.dict_intg['거래대금차이'] = df['거래대금차이'][0]
-        self.dict_intg['체결강도하한'] = df['체결강도하한'][0]
-        self.dict_intg['누적거래대금하한'] = df['누적거래대금하한'][0]
-        self.dict_intg['등락율하한'] = df['등락율하한'][0]
-        self.dict_intg['등락율상한'] = df['등락율상한'][0]
-        self.dict_intg['청산수익률'] = df['청산수익률'][0]
-        con.close()
         while True:
             data = self.stgQ.get()
             if len(data) == 2:
@@ -67,7 +40,7 @@ class StrategyCoin:
         if '관심종목초기화' in gubun:
             self.dict_gsjm = {}
             for ticker in tickers:
-                data = np.zeros((self.dict_intg['평균시간'] + 2, len(columns_gj1))).tolist()
+                data = np.zeros((DICT_SET['평균시간2'] + 2, len(columns_gj1))).tolist()
                 df = pd.DataFrame(data, columns=columns_gj1)
                 df['체결시간'] = strf_time('%H%M%S', timedelta_hour(-9))
                 self.dict_gsjm[ticker] = df.copy()
@@ -91,15 +64,15 @@ class StrategyCoin:
         except ZeroDivisionError:
             ch = 500.
         self.dict_gsjm[ticker] = self.dict_gsjm[ticker].shift(1)
-        if len(self.dict_gsjm[ticker]) == self.dict_intg['평균시간'] + 2 and \
-                self.dict_gsjm[ticker]['체결강도'][self.dict_intg['평균시간']] != 0.:
-            avg_sm = int(self.dict_gsjm[ticker]['거래대금'][1:self.dict_intg['평균시간'] + 1].mean())
-            avg_ch = round(self.dict_gsjm[ticker]['체결강도'][1:self.dict_intg['평균시간'] + 1].mean(), 2)
-            high_ch = round(self.dict_gsjm[ticker]['체결강도'][1:self.dict_intg['평균시간'] + 1].max(), 2)
-            self.dict_gsjm[ticker].at[self.dict_intg['평균시간'] + 1] = 0., 0., avg_sm, 0, avg_ch, high_ch, t
+        if len(self.dict_gsjm[ticker]) == DICT_SET['평균시간2'] + 2 and \
+                self.dict_gsjm[ticker]['체결강도'][DICT_SET['평균시간2']] != 0.:
+            avg_sm = int(self.dict_gsjm[ticker]['거래대금'][1:DICT_SET['평균시간2'] + 1].mean())
+            avg_ch = round(self.dict_gsjm[ticker]['체결강도'][1:DICT_SET['평균시간2'] + 1].mean(), 2)
+            high_ch = round(self.dict_gsjm[ticker]['체결강도'][1:DICT_SET['평균시간2'] + 1].max(), 2)
+            self.dict_gsjm[ticker].at[DICT_SET['평균시간2'] + 1] = 0., 0., avg_sm, 0, avg_ch, high_ch, t
         self.dict_gsjm[ticker].at[0] = per, hlmp, sm, dm, ch, 0., t
 
-        if self.dict_gsjm[ticker]['체결강도'][self.dict_intg['평균시간']] == 0:
+        if self.dict_gsjm[ticker]['체결강도'][DICT_SET['평균시간2']] == 0:
             return
         if ticker in self.list_buy:
             return
@@ -116,6 +89,9 @@ class StrategyCoin:
             return
 
         oc = 0
+        """ 아래는 매도조건 예시 """
+        if sp <= -2 or sp >= 3:
+            oc = jc
 
         # 전략 비공개
 

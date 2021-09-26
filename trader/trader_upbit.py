@@ -34,12 +34,7 @@ class TraderUpbit(QThread):
         self.dict_intg = {
             '예수금': 0,
             '종목당투자금': 0,                            # 종목당 투자금은 int(예수금 / 최대매수종목수)로 계산
-            '최대매수종목수': 10,
             '업비트수수료': 0.                            # 0.5% 일경우 0.005로 입력
-        }
-        self.dict_bool = {
-            '모의투자': True,
-            '알림소리': True
         }
         self.dict_time = {
             '매수체결확인': now(),                          # 1초 마다 매수 체결 확인용
@@ -58,7 +53,7 @@ class TraderUpbit(QThread):
         프로그램 구동 시 당일 체결목록, 당일 거래목록, 잔고목록을 불러온다.
         체결과 거래목록은 바로 갱신하고 잔고목록은 예수금을 불러온 이후 갱신한다.
         """
-        con = sqlite3.connect(db_tradelist)
+        con = sqlite3.connect(DB_TRADELIST)
         df = pd.read_sql(f"SELECT * FROM c_chegeollist WHERE 체결시간 LIKE '{self.str_today}%'", con)
         self.df_cj = df.set_index('index').sort_values(by=['체결시간'], ascending=False)
         df = pd.read_sql(f'SELECT * FROM c_jangolist', con)
@@ -74,34 +69,21 @@ class TraderUpbit(QThread):
         self.windowQ.put([ui_num['C로그텍스트'], '시스템 명령 실행 알림 - 데이터베이스 불러오기 완료'])
 
     def GetKey(self):
-        """
-        DB에서 업비트 access 키와 secret 키를 읽어 self.upbit 객체 생성
-        해당 객체는 매도수 주문 및 체결확인용이다.
-        """
-        con = sqlite3.connect(db_setting)
-        df = pd.read_sql('SELECT * FROM coin', con)
-        df = df.set_index('index')
-        self.dict_bool['모의투자'] = df['모의투자'][0]
-        self.dict_bool['알림소리'] = df['알림소리'][0]
-        df = pd.read_sql('SELECT * FROM upbit', con)
-        df = df.set_index('index')
-        con.close()
-        if len(df) > 0 and df['Access_key'][0] != '':
-            access_key = df['Access_key'][0]
-            secret_key = df['Secret_key'][0]
-            self.upbit = pyupbit.Upbit(access_key, secret_key)
+        """ 매도수 주문 및 체결확인용 self.upbit 객체 생성 """
+        if DICT_SET['Access_key'] is not None:
+            self.upbit = pyupbit.Upbit(DICT_SET['Access_key'], DICT_SET['Secret_key'])
             self.windowQ.put([ui_num['C로그텍스트'], '시스템 명령 실행 알림 - 주문 및 체결확인용 업비트 객체 생성 완료'])
         else:
             self.windowQ.put([ui_num['C로그텍스트'], '시스템 명령 오류 알림 - 업비트 키값이 설정되지 않았습니다.'])
 
     def GetBalances(self):
         """ 예수금 조회 및 종목당투자금 계산 """
-        if self.dict_bool['모의투자']:
+        if DICT_SET['모의투자2']:
             self.dict_intg['예수금'] = 100000000 - self.df_jg['매입금액'].sum() + self.df_jg['평가손익'].sum()
-            self.dict_intg['종목당투자금'] = int(100000000 / self.dict_intg['최대매수종목수'])
+            self.dict_intg['종목당투자금'] = int(100000000 * 0.99 / self.dict_intg['최대매수종목수'])
         elif self.upbit is not None:
             self.dict_intg['예수금'] = int(float(self.upbit.get_balances()[0]['balance']))
-            self.dict_intg['종목당투자금'] = int(self.dict_intg['예수금'] / self.dict_intg['최대매수종목수'])
+            self.dict_intg['종목당투자금'] = int(self.dict_intg['예수금'] * 0.99 / DICT_SET['최대매수종목수2'])
         else:
             self.windowQ.put([ui_num['C로그텍스트'], '시스템 명령 오류 알림 - 업비트 키값이 설정되지 않았습니다.'])
 
@@ -162,7 +144,7 @@ class TraderUpbit(QThread):
                     self.UpdateJango(ticker, c, ch)
 
             """ 주문의 체결확인은 1초마다 반복한다. """
-            if not self.dict_bool['모의투자']:
+            if not DICT_SET['모의투자2']:
                 if self.buy_uuid is not None and ticker == self.buy_uuid[0] and now() > self.dict_time['매수체결확인']:
                     self.CheckBuyChegeol(ticker)
                     self.dict_time['매수체결확인'] = timedelta_sec(1)
@@ -205,7 +187,7 @@ class TraderUpbit(QThread):
             self.cstgQ.put(['매수완료', ticker])
             return
 
-        if self.dict_bool['모의투자']:
+        if DICT_SET['모의투자2']:
             self.UpdateBuy(ticker, c, oc)
         elif self.upbit is not None:
             ret = self.upbit.buy_market_order(ticker, self.dict_intg['종목당투자금'])
@@ -220,7 +202,7 @@ class TraderUpbit(QThread):
             self.cstgQ.put(['매도완료', ticker])
             return
 
-        if self.dict_bool['모의투자']:
+        if DICT_SET['모의투자2']:
             self.UpdateSell(ticker, c, oc)
         elif self.upbit is not None:
             ret = self.upbit.sell_market_order(ticker, oc)
@@ -245,7 +227,7 @@ class TraderUpbit(QThread):
         for ticker in self.df_jg.index:
             c = self.df_jg['현재가'][ticker]
             oc = self.df_jg['보유수량'][ticker]
-            if self.dict_bool['모의투자']:
+            if DICT_SET['모의투자2']:
                 self.UpdateSell(ticker, c, oc)
             elif self.upbit is not None:
                 self.upbit.sell_market_order(ticker, oc)
@@ -255,7 +237,7 @@ class TraderUpbit(QThread):
                 self.windowQ.put([ui_num['C로그텍스트'], text])
 
         self.windowQ.put([ui_num['C로그텍스트'], '시스템 명령 실행 알림 - 잔고청산 주문 전송 완료'])
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리2']:
             self.soundQ.put('코인 잔고청산 주문을 전송하였습니다.')
 
     def CheckBuyChegeol(self, ticker):
@@ -291,7 +273,7 @@ class TraderUpbit(QThread):
             self.queryQ.put([2, self.df_jg, 'c_jangolist', 'replace'])
             text = f'매매 시스템 체결 알림 - {ticker} {cc}코인 매수'
             self.windowQ.put([ui_num['C로그텍스트'], text])
-            if self.dict_bool['알림소리']:
+            if DICT_SET['알림소리2']:
                 self.soundQ.put(f'{ticker} {cc}코인을 매수하였습니다.')
             self.teleQ.put(f'매수 알림 - {ticker} {cp} {cc}')
         df = pd.DataFrame([[ticker, order_gubun, cc, 0, cp, cp, dt]], columns=columns_cj, index=[dt])
@@ -314,7 +296,7 @@ class TraderUpbit(QThread):
 
         text = f'매매 시스템 체결 알림 - {ticker} {bp}코인 매도'
         self.windowQ.put([ui_num['C로그텍스트'], text])
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리2']:
             self.soundQ.put(f'{ticker} {cc}코인을 매도하였습니다.')
 
         self.queryQ.put([2, self.df_jg, 'c_jangolist', 'replace'])

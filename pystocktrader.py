@@ -16,37 +16,6 @@ from utility.query import Query
 from utility.telegram_msg import TelegramMsg
 from utility.static import now, strf_time, strp_time, changeFormat, thread_decorator
 
-conn = sqlite3.connect(db_setting)
-dfs = pd.read_sql('SELECT * FROM kiwoom', conn)
-dfs = dfs.set_index('index')
-
-KIWOOM_ACCOUNT1 = True if len(dfs) > 0 and dfs['아이디1'][0] != '' else False
-KIWOOM_ACCOUNT2 = True if len(dfs) > 0 and dfs['아이디2'][0] != '' else False
-
-dfs = pd.read_sql('SELECT * FROM upbit', conn)
-dfs = dfs.set_index('index')
-
-UPBIT_ACCOUNT = True if len(dfs) > 0 and dfs['Access_key'][0] != '' else False
-
-dfs = pd.read_sql('SELECT * FROM main', conn)
-dfs = dfs.set_index('index')
-conn.close()
-
-if len(dfs) > 0:
-    KIWOOM_COLLECTOR = dfs['키움콜렉터'][0]
-    KIWOOM_TRADER = dfs['키움트레이더'][0]
-    UPBIT_COLLECTOR = dfs['업비트콜렉터'][0]
-    UPBIT_TRADER = dfs['업비트트레이더'][0]
-    BACKTESTER = dfs['백테스터'][0]
-    BACKTESTER_TIME = dfs['시작시간'][0]
-else:
-    KIWOOM_COLLECTOR = False
-    KIWOOM_TRADER = False
-    UPBIT_COLLECTOR = False
-    UPBIT_TRADER = False
-    BACKTESTER = False
-    BACKTESTER_TIME = 0
-
 
 class Window(QtWidgets.QMainWindow):
     def __init__(self):
@@ -54,12 +23,12 @@ class Window(QtWidgets.QMainWindow):
 
         self.log1 = logging.getLogger('Stock')
         self.log1.setLevel(logging.INFO)
-        filehandler = logging.FileHandler(filename=f"{system_path}/log/S{strf_time('%Y%m%d')}.txt", encoding='utf-8')
+        filehandler = logging.FileHandler(filename=f"{SYSTEM_PATH}/log/S{strf_time('%Y%m%d')}.txt", encoding='utf-8')
         self.log1.addHandler(filehandler)
 
         self.log2 = logging.getLogger('Coin')
         self.log2.setLevel(logging.INFO)
-        filehandler = logging.FileHandler(filename=f"{system_path}/log/C{strf_time('%Y%m%d')}.txt", encoding='utf-8')
+        filehandler = logging.FileHandler(filename=f"{SYSTEM_PATH}/log/C{strf_time('%Y%m%d')}.txt", encoding='utf-8')
         self.log2.addHandler(filehandler)
 
         SetUI(self)
@@ -70,41 +39,6 @@ class Window(QtWidgets.QMainWindow):
         self.cpu_per = 0
         self.int_time = int(strf_time('%H%M%S'))
         self.dict_name = {}
-        self.dict_intg = {}
-
-        con = sqlite3.connect(db_setting)
-        df = pd.read_sql('SELECT * FROM stock', con)
-        df = df.set_index('index')
-        self.dict_intg['백테스팅기간1'] = df['백테스팅기간'][0]
-        self.dict_intg['백테스팅시간1'] = df['백테스팅시간'][0]
-        self.dict_intg['시작시간1'] = df['시작시간'][0]
-        self.dict_intg['종료시간1'] = df['종료시간'][0]
-        self.dict_intg['체결강도차이1'] = df['체결강도차이'][0]
-        self.dict_intg['평균시간1'] = df['평균시간'][0]
-        self.dict_intg['거래대금차이1'] = df['거래대금차이'][0]
-        self.dict_intg['체결강도하한1'] = df['체결강도하한'][0]
-        self.dict_intg['누적거래대금하한1'] = df['누적거래대금하한'][0]
-        self.dict_intg['등락율하한1'] = df['등락율하한'][0]
-        self.dict_intg['등락율상한1'] = df['등락율상한'][0]
-        self.dict_intg['청산수익률1'] = df['청산수익률'][0]
-        con.close()
-
-        con = sqlite3.connect(db_setting)
-        df = pd.read_sql('SELECT * FROM coin', con)
-        df = df.set_index('index')
-        self.dict_intg['백테스팅기간2'] = df['백테스팅기간'][0]
-        self.dict_intg['백테스팅시간2'] = df['백테스팅시간'][0]
-        self.dict_intg['시작시간2'] = df['시작시간'][0]
-        self.dict_intg['종료시간2'] = df['종료시간'][0]
-        self.dict_intg['체결강도차이2'] = df['체결강도차이'][0]
-        self.dict_intg['평균시간2'] = df['평균시간'][0]
-        self.dict_intg['거래대금차이2'] = df['거래대금차이'][0]
-        self.dict_intg['체결강도하한2'] = df['체결강도하한'][0]
-        self.dict_intg['누적거래대금하한2'] = df['누적거래대금하한'][0]
-        self.dict_intg['등락율하한2'] = df['등락율하한'][0]
-        self.dict_intg['등락율상한2'] = df['등락율상한'][0]
-        self.dict_intg['청산수익률2'] = df['청산수익률'][0]
-        con.close()
 
         self.writer = Writer()
         self.writer.data1.connect(self.UpdateTexedit)
@@ -139,23 +73,23 @@ class Window(QtWidgets.QMainWindow):
 
     def ProcessStart(self):
         if now().weekday() not in [6, 7]:
-            if KIWOOM_COLLECTOR and self.int_time < stock_vjup_time <= int(strf_time('%H%M%S')):
+            if DICT_SET['키움콜렉터'] and self.int_time < DICT_SET['버전업'] <= int(strf_time('%H%M%S')):
                 self.backtester_count = 0
                 self.backtester_process = None
-                if KIWOOM_ACCOUNT2:
-                    subprocess.Popen(f'python {system_path}/login_kiwoom/versionupdater.py')
+                if DICT_SET['아이디2'] is not None:
+                    subprocess.Popen(f'python {SYSTEM_PATH}/login_kiwoom/versionupdater.py')
                 else:
                     text = '키움증권 두번째 계정이 설정되지 않아 버전 업그레이드를 실행할 수 없습니다.'
                     windowQ.put([ui_num['S단순텍스트'], text])
 
-            if KIWOOM_COLLECTOR and self.int_time < stock_alg2_time <= int(strf_time('%H%M%S')):
-                if KIWOOM_ACCOUNT2:
-                    subprocess.Popen(f'python {system_path}/login_kiwoom/autologin2.py')
+            if DICT_SET['키움콜렉터'] and self.int_time < DICT_SET['자동로그인2'] <= int(strf_time('%H%M%S')):
+                if DICT_SET['아이디2'] is not None:
+                    subprocess.Popen(f'python {SYSTEM_PATH}/login_kiwoom/autologin2.py')
                 else:
                     text = '키움증권 두번째 계정이 설정되지 않아 자동로그인설정을 실행할 수 없습니다.'
                     windowQ.put([ui_num['S단순텍스트'], text])
 
-            if KIWOOM_COLLECTOR and self.int_time < stock_coll_time <= int(strf_time('%H%M%S')):
+            if DICT_SET['키움콜렉터'] and self.int_time < DICT_SET['콜렉터'] <= int(strf_time('%H%M%S')):
                 Process(target=UpdaterTickKiwoom, args=(windowQ, queryQ, tick1Q), daemon=True).start()
                 Process(target=UpdaterTickKiwoom, args=(windowQ, queryQ, tick2Q), daemon=True).start()
                 Process(target=UpdaterTickKiwoom, args=(windowQ, queryQ, tick3Q), daemon=True).start()
@@ -171,15 +105,15 @@ class Window(QtWidgets.QMainWindow):
                 soundQ.put(text)
                 teleQ.put(text)
 
-            if KIWOOM_TRADER and self.int_time < stock_alg1_time <= int(strf_time('%H%M%S')):
-                if KIWOOM_ACCOUNT1:
-                    subprocess.Popen(f'python {system_path}/login_kiwoom/autologin1.py')
+            if DICT_SET['키움트레이더'] and self.int_time < DICT_SET['자동로그인1'] <= int(strf_time('%H%M%S')):
+                if DICT_SET['아이디1'] is not None:
+                    subprocess.Popen(f'python {SYSTEM_PATH}/login_kiwoom/autologin1.py')
                 else:
                     text = '키움증권 첫번째 계정이 설정되지 않아 자동로그인설정을 실행할 수 없습니다.'
                     windowQ.put([ui_num['S로그텍스트'], text])
 
-            if KIWOOM_TRADER and self.int_time < stock_trad_time <= int(strf_time('%H%M%S')):
-                if KIWOOM_ACCOUNT1:
+            if DICT_SET['키움트레이더'] and self.int_time < DICT_SET['트레이더'] <= int(strf_time('%H%M%S')):
+                if DICT_SET['아이디1'] is not None:
                     Process(target=StrategyStock, args=(windowQ, stockQ, sstgQ), daemon=True).start()
                     Process(target=TraderKiwoom, args=(windowQ, stockQ, sstgQ, soundQ, queryQ, teleQ),
                             daemon=True).start()
@@ -190,8 +124,8 @@ class Window(QtWidgets.QMainWindow):
                     text = '키움증권 첫번째 계정이 설정되지 않아 트레이더를 실행할 수 없습니다.'
                     windowQ.put([ui_num['S로그텍스트'], text])
 
-        if BACKTESTER:
-            if BACKTESTER_TIME < self.int_time < stock_vjup_time:
+        if DICT_SET['백테스터']:
+            if DICT_SET['백테스터시작시간'] < self.int_time < DICT_SET['버전업']:
                 if self.backtester_count == 0 and \
                         (self.backtester_process is None or self.backtester_process.poll() == 0):
                     self.ButtonClicked_8()
@@ -205,7 +139,7 @@ class Window(QtWidgets.QMainWindow):
                     self.ButtonClicked_14()
                     self.backtester_count = 2
 
-        if UPBIT_COLLECTOR:
+        if DICT_SET['업비트콜렉터']:
             if not self.websocket_ticker.isRunning():
                 self.websocket_ticker.start()
             if not self.websocket_orderbook.isRunning():
@@ -218,8 +152,8 @@ class Window(QtWidgets.QMainWindow):
                 soundQ.put(text)
                 teleQ.put(text)
 
-        if UPBIT_TRADER:
-            if UPBIT_ACCOUNT:
+        if DICT_SET['업비트트레이더']:
+            if DICT_SET['Access_key'] is not None:
                 if not self.strategy_process.is_alive():
                     self.strategy_process.start()
                 if not self.trader_upbit.isRunning():
@@ -351,7 +285,7 @@ class Window(QtWidgets.QMainWindow):
             else:
                 gubun = 'C'
                 table = 'c_totaltradelist'
-            con = sqlite3.connect(db_tradelist)
+            con = sqlite3.connect(DB_TRADELIST)
             df = pd.read_sql(f'SELECT * FROM {table}', con)
             con.close()
             df = df[::-1]
@@ -404,7 +338,7 @@ class Window(QtWidgets.QMainWindow):
                 self.UpdateTablewidget([ui_num[f'{gubun}누적상세'], df2])
 
     def ButtonClicked_8(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM stockback_jcv', con)
         df = df.set_index('index')
         con.close()
@@ -559,7 +493,7 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         self.backtester_process = subprocess.Popen(
-            f'python {system_path}/backtester/backtester_stock_vc.py '
+            f'python {SYSTEM_PATH}/backtester/backtester_stock_vc.py '
             f'{self.sbvc_lineEdit_01.text()} {self.sbvc_lineEdit_02.text()} {self.sbvc_lineEdit_03.text()} '
             f'{self.sbvc_lineEdit_04.text()} {self.sbvc_lineEdit_05.text()} {self.sbvc_lineEdit_06.text()} '
             f'{self.sbvc_lineEdit_07.text()} {self.sbvc_lineEdit_08.text()} {self.sbvc_lineEdit_09.text()} '
@@ -701,7 +635,7 @@ class Window(QtWidgets.QMainWindow):
         queryQ.put([1, df, 'stockback_jcv', 'replace'])
 
     def ButtonClicked_11(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM stock', con)
         df = df.set_index('index')
         con.close()
@@ -757,7 +691,7 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         self.backtester_process = subprocess.Popen(
-            f'python {system_path}/backtester/backtester_stock_vj.py '
+            f'python {SYSTEM_PATH}/backtester/backtester_stock_vj.py '
             f'{self.sbvj_lineEdit_01.text()} {self.sbvj_lineEdit_02.text()} {self.sbvj_lineEdit_03.text()} '
             f'{self.sbvj_lineEdit_04.text()} {self.sbvj_lineEdit_05.text()} {self.sbvj_lineEdit_06.text()} '
             f'{self.sbvj_lineEdit_07.text()} {self.sbvj_lineEdit_08.text()} {self.sbvj_lineEdit_09.text()} '
@@ -766,7 +700,7 @@ class Window(QtWidgets.QMainWindow):
         )
 
     def ButtonClicked_13(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM coinback_jjv', con)
         df = df.set_index('index')
         con.close()
@@ -921,7 +855,7 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         self.backtester_process = subprocess.Popen(
-            f'python {system_path}/backtester/backtester_coin_vc.py '
+            f'python {SYSTEM_PATH}/backtester/backtester_coin_vc.py '
             f'{self.cbvc_lineEdit_01.text()} {self.cbvc_lineEdit_02.text()} {self.cbvc_lineEdit_03.text()} '
             f'{self.cbvc_lineEdit_04.text()} {self.cbvc_lineEdit_05.text()} {self.cbvc_lineEdit_06.text()} '
             f'{self.cbvc_lineEdit_07.text()} {self.cbvc_lineEdit_08.text()} {self.cbvc_lineEdit_09.text()} '
@@ -1063,7 +997,7 @@ class Window(QtWidgets.QMainWindow):
         queryQ.put([1, df, 'coinback_jjv', 'replace'])
 
     def ButtonClicked_16(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM coin', con)
         df = df.set_index('index')
         con.close()
@@ -1119,7 +1053,7 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
             return
         self.backtester_process = subprocess.Popen(
-            f'python {system_path}/backtester/backtester_coin_vj.py '
+            f'python {SYSTEM_PATH}/backtester/backtester_coin_vj.py '
             f'{self.cbvj_lineEdit_01.text()} {self.cbvj_lineEdit_02.text()} {self.cbvj_lineEdit_03.text()} '
             f'{self.cbvj_lineEdit_04.text()} {self.cbvj_lineEdit_05.text()} {self.cbvj_lineEdit_06.text()} '
             f'{self.cbvj_lineEdit_07.text()} {self.cbvj_lineEdit_08.text()} {self.cbvj_lineEdit_09.text()} '
@@ -1128,7 +1062,7 @@ class Window(QtWidgets.QMainWindow):
         )
 
     def ButtonClicked_18(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM main', con)
         df = df.set_index('index')
         con.close()
@@ -1144,7 +1078,7 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, '오류 알림', '시스템 기본 설정값이\n존재하지 않습니다.\n')
 
     def ButtonClicked_19(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM kiwoom', con)
         df = df.set_index('index')
         con.close()
@@ -1162,7 +1096,7 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, '오류 알림', '키움증권 계정 설정값이\n존재하지 않습니다.\n')
 
     def ButtonClicked_20(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM upbit', con)
         df = df.set_index('index')
         con.close()
@@ -1174,7 +1108,7 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, '오류 알림', '업비트 계정 설정값이\n존재하지 않습니다.\n')
 
     def ButtonClicked_21(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM telegram', con)
         df = df.set_index('index')
         con.close()
@@ -1186,7 +1120,7 @@ class Window(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, '오류 알림', '텔레그램 봇토큰 및 사용자 아이디\n설정값이 존재하지 않습니다.\n')
 
     def ButtonClicked_22(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM stock', con)
         df = df.set_index('index')
         con.close()
@@ -1199,21 +1133,23 @@ class Window(QtWidgets.QMainWindow):
             self.sj_stock_lineEdit_04.setText(str(df['자동로그인1'][0]))
             self.sj_stock_lineEdit_05.setText(str(df['트레이더'][0]))
             self.sj_stock_lineEdit_06.setText(str(df['전략시작'][0]))
-            self.sj_stock_lineEdit_07.setText(str(df['전략종료'][0]))
-            self.sj_stock_lineEdit_08.setText(str(df['체결강도차이'][0]))
-            self.sj_stock_lineEdit_09.setText(str(df['평균시간'][0]))
-            self.sj_stock_lineEdit_10.setText(str(df['거래대금차이'][0]))
-            self.sj_stock_lineEdit_11.setText(str(df['체결강도하한'][0]))
-            self.sj_stock_lineEdit_12.setText(str(df['누적거래대금하한'][0]))
-            self.sj_stock_lineEdit_13.setText(str(df['등락율하한'][0]))
-            self.sj_stock_lineEdit_14.setText(str(df['등락율상한'][0]))
-            self.sj_stock_lineEdit_15.setText(str(df['청산수익률'][0]))
+            self.sj_stock_lineEdit_07.setText(str(df['잔고청산'][0]))
+            self.sj_stock_lineEdit_08.setText(str(df['전략종료'][0]))
+            self.sj_stock_lineEdit_09.setText(str(df['체결강도차이'][0]))
+            self.sj_stock_lineEdit_10.setText(str(df['평균시간'][0]))
+            self.sj_stock_lineEdit_11.setText(str(df['거래대금차이'][0]))
+            self.sj_stock_lineEdit_12.setText(str(df['체결강도하한'][0]))
+            self.sj_stock_lineEdit_13.setText(str(df['누적거래대금하한'][0]))
+            self.sj_stock_lineEdit_14.setText(str(df['등락율하한'][0]))
+            self.sj_stock_lineEdit_15.setText(str(df['등락율상한'][0]))
+            self.sj_stock_lineEdit_16.setText(str(df['청산수익률'][0]))
+            self.sj_stock_lineEdit_17.setText(str(df['최대매수종목수'][0]))
             self.UpdateTexedit([ui_num['설정텍스트'], '주식 전략 설정값 불러오기 완료'])
         else:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '주식 전략 설정값이\n존재하지 않습니다.\n')
 
     def ButtonClicked_23(self):
-        con = sqlite3.connect(db_setting)
+        con = sqlite3.connect(DB_SETTING)
         df = pd.read_sql('SELECT * FROM coin', con)
         df = df.set_index('index')
         con.close()
@@ -1228,6 +1164,7 @@ class Window(QtWidgets.QMainWindow):
             self.sj_coin_lineEdit_06.setText(str(df['등락율하한'][0]))
             self.sj_coin_lineEdit_07.setText(str(df['등락율상한'][0]))
             self.sj_coin_lineEdit_08.setText(str(df['청산수익률'][0]))
+            self.sj_coin_lineEdit_09.setText(str(df['최대매수종목수'][0]))
             self.UpdateTexedit([ui_num['설정텍스트'], '코인 전략 설정값 불러오기 완료'])
         else:
             QtWidgets.QMessageBox.critical(self, '오류 알림', '코인 전략 설정값이\n존재하지 않습니다.\n')
@@ -1291,23 +1228,27 @@ class Window(QtWidgets.QMainWindow):
         alg1 = self.sj_stock_lineEdit_04.text()
         tr = self.sj_stock_lineEdit_05.text()
         ss = self.sj_stock_lineEdit_06.text()
-        se = self.sj_stock_lineEdit_07.text()
-        gapch = self.sj_stock_lineEdit_08.text()
-        avgtime = self.sj_stock_lineEdit_09.text()
-        gapsm = self.sj_stock_lineEdit_10.text()
-        chlow = self.sj_stock_lineEdit_11.text()
-        dmlow = self.sj_stock_lineEdit_12.text()
-        plow = self.sj_stock_lineEdit_13.text()
-        phigh = self.sj_stock_lineEdit_14.text()
-        csper = self.sj_stock_lineEdit_15.text()
-        if vu == '' or alg2 == '' or cl == '' or alg1 == '' or tr == '' or ss == '' or se == '' or gapch == '' or \
-                avgtime == '' or gapsm == '' or chlow == '' or dmlow == '' or plow == '' or phigh == '' or csper == '':
+        cs = self.sj_stock_lineEdit_07.text()
+        se = self.sj_stock_lineEdit_08.text()
+        gapch = self.sj_stock_lineEdit_09.text()
+        avgtime = self.sj_stock_lineEdit_10.text()
+        gapsm = self.sj_stock_lineEdit_11.text()
+        chlow = self.sj_stock_lineEdit_12.text()
+        dmlow = self.sj_stock_lineEdit_13.text()
+        plow = self.sj_stock_lineEdit_14.text()
+        phigh = self.sj_stock_lineEdit_15.text()
+        csper = self.sj_stock_lineEdit_16.text()
+        buyc = self.sj_stock_lineEdit_17.text()
+        if vu == '' or alg2 == '' or cl == '' or alg1 == '' or tr == '' or ss == '' or cs == '' or se == '' or \
+                gapch == '' or avgtime == '' or gapsm == '' or chlow == '' or dmlow == '' or plow == '' or \
+                phigh == '' or csper == '' or buyc == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
         else:
             query = f"UPDATE stock SET 모의투자 = {me}, 알림소리 = {sd}, 버전업 = {vu}, 자동로그인2 = {alg2}," \
-                    f"콜렉터 = {cl}, 자동로그인1 = {alg1}, 트레이더 = {tr}, 전략시작 = {ss}, 전략종료 = {se}," \
-                    f"체결강도차이 = {gapch}, 평균시간 = {avgtime}, 거래대금차이 = {gapsm}, 체결강도하한 = {chlow}," \
-                    f"누적거래대금하한 = {dmlow}, 등락율하한 = {plow}, 등락율상한 = {phigh}, 청산수익률 = {csper}"
+                    f"콜렉터 = {cl}, 자동로그인1 = {alg1}, 트레이더 = {tr}, 전략시작 = {ss}, 잔고청산 = {cs}," \
+                    f"전략종료 = {se}, 체결강도차이 = {gapch}, 평균시간 = {avgtime}, 거래대금차이 = {gapsm}, " \
+                    f"체결강도하한 = {chlow}, 누적거래대금하한 = {dmlow}, 등락율하한 = {plow}, 등락율상한 = {phigh}, " \
+                    f"청산수익률 = {csper}, 최대매수종목수 = {buyc}"
             queryQ.put([1, query])
             self.UpdateTexedit([ui_num['설정텍스트'], '주식 전략 설정값 저장하기 완료'])
 
@@ -1322,13 +1263,14 @@ class Window(QtWidgets.QMainWindow):
         plow = self.sj_coin_lineEdit_06.text()
         phigh = self.sj_coin_lineEdit_07.text()
         csper = self.sj_coin_lineEdit_08.text()
+        buyc = self.sj_coin_lineEdit_09.text()
         if gapch == '' or avgtime == '' or gapsm == '' or chlow == '' or \
-                dmlow == '' or plow == '' or phigh == '' or csper == '':
+                dmlow == '' or plow == '' or phigh == '' or csper == '' or buyc == '':
             QtWidgets.QMessageBox.critical(self, '오류 알림', '일부 변수값이 입력되지 않았습니다.\n')
         else:
             query = f"UPDATE coin SET 모의투자 = {me}, 알림소리 = {sd}, 체결강도차이 = {gapch}, 평균시간 = {avgtime}," \
                     f"거래대금차이 = {gapsm}, 체결강도하한 = {chlow}, 누적거래대금하한 = {dmlow}, 등락율하한 = {plow}," \
-                    f"등락율상한 = {phigh}, 청산수익률 = {csper}"
+                    f"등락율상한 = {phigh}, 청산수익률 = {csper}, 최대매수종목수 = {buyc}"
             queryQ.put([1, query])
             self.UpdateTexedit([ui_num['설정텍스트'], '코인 전략 설정값 저장하기 완료'])
 
@@ -1471,17 +1413,17 @@ class Window(QtWidgets.QMainWindow):
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             gj_tableWidget.setItem(j, 0, item)
 
-            smavg = dict_df[code]['거래대금'][self.dict_intg[f'평균시간{tn}'] + 1]
+            smavg = dict_df[code]['거래대금'][DICT_SET[f'평균시간{tn}'] + 1]
             item = QtWidgets.QTableWidgetItem(changeFormat(smavg).split('.')[0])
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignRight)
             gj_tableWidget.setItem(j, columns_gj3.index('smavg'), item)
 
-            chavg = dict_df[code]['체결강도'][self.dict_intg[f'평균시간{tn}'] + 1]
+            chavg = dict_df[code]['체결강도'][DICT_SET[f'평균시간{tn}'] + 1]
             item = QtWidgets.QTableWidgetItem(changeFormat(chavg))
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignRight)
             gj_tableWidget.setItem(j, columns_gj3.index('chavg'), item)
 
-            chhigh = dict_df[code]['최고체결강도'][self.dict_intg[f'평균시간{tn}'] + 1]
+            chhigh = dict_df[code]['최고체결강도'][DICT_SET[f'평균시간{tn}'] + 1]
             item = QtWidgets.QTableWidgetItem(changeFormat(chhigh))
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignRight)
             gj_tableWidget.setItem(j, columns_gj3.index('chhigh'), item)
@@ -1493,8 +1435,8 @@ class Window(QtWidgets.QMainWindow):
                     item = QtWidgets.QTableWidgetItem(changeFormat(dict_df[code][column][0]))
                 item.setTextAlignment(Qt.AlignVCenter | Qt.AlignRight)
                 if column == '등락율':
-                    if self.dict_intg[f'등락율하한{tn}'] <= dict_df[code][column][0] <= \
-                            self.dict_intg[f'등락율상한{tn}']:
+                    if DICT_SET[f'등락율하한{tn}'] <= dict_df[code][column][0] <= \
+                            DICT_SET[f'등락율상한{tn}']:
                         item.setForeground(color_fg_bt)
                     else:
                         item.setForeground(color_fg_dk)
@@ -1504,18 +1446,18 @@ class Window(QtWidgets.QMainWindow):
                     else:
                         item.setForeground(color_fg_dk)
                 elif column == '거래대금':
-                    if dict_df[code][column][0] >= smavg + self.dict_intg[f'거래대금차이{tn}']:
+                    if dict_df[code][column][0] >= smavg + DICT_SET[f'거래대금차이{tn}']:
                         item.setForeground(color_fg_bt)
                     else:
                         item.setForeground(color_fg_dk)
                 elif column == '누적거래대금':
-                    if dict_df[code][column][0] >= self.dict_intg[f'누적거래대금하한{tn}']:
+                    if dict_df[code][column][0] >= DICT_SET[f'누적거래대금하한{tn}']:
                         item.setForeground(color_fg_bt)
                     else:
                         item.setForeground(color_fg_dk)
                 elif column == '체결강도':
-                    if dict_df[code][column][0] >= self.dict_intg[f'체결강도하한{tn}'] and \
-                            dict_df[code][column][0] >= chavg + self.dict_intg[f'체결강도차이{tn}']:
+                    if dict_df[code][column][0] >= DICT_SET[f'체결강도하한{tn}'] and \
+                            dict_df[code][column][0] >= chavg + DICT_SET[f'체결강도차이{tn}']:
                         item.setForeground(color_fg_bt)
                     else:
                         item.setForeground(color_fg_dk)
@@ -1531,7 +1473,7 @@ class Window(QtWidgets.QMainWindow):
         else:
             table = 'c_tradelist'
             searchday = self.c_calendarWidget.selectedDate().toString('yyyyMMdd')
-        con = sqlite3.connect(db_tradelist)
+        con = sqlite3.connect(DB_TRADELIST)
         df = pd.read_sql(f"SELECT * FROM {table} WHERE 체결시간 LIKE '{searchday}%'", con)
         con.close()
         if len(df) > 0:
@@ -1559,8 +1501,8 @@ class Window(QtWidgets.QMainWindow):
                 sound_process.kill()
             if query_process.is_alive():
                 query_process.kill()
-            if telefram_process.is_alive():
-                telefram_process.kill()
+            if telegram_process.is_alive():
+                telegram_process.kill()
             a.accept()
         else:
             a.ignore()
@@ -1596,10 +1538,10 @@ if __name__ == '__main__':
 
     sound_process = Process(target=Sound, args=(soundQ,), daemon=True)
     query_process = Process(target=Query, args=(windowQ, collectorQ, queryQ), daemon=True)
-    telefram_process = Process(target=TelegramMsg, args=(windowQ, stockQ, coinQ, teleQ), daemon=True)
+    telegram_process = Process(target=TelegramMsg, args=(windowQ, stockQ, coinQ, teleQ), daemon=True)
     sound_process.start()
     query_process.start()
-    telefram_process.start()
+    telegram_process.start()
 
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle(ProxyStyle())

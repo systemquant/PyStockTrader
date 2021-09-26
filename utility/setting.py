@@ -2,32 +2,83 @@ import sqlite3
 import pandas as pd
 from PyQt5.QtGui import QFont, QColor
 
-openapi_path = 'D:/OpenAPI'
-system_path = 'D:/PythonProjects/PyStockTrader'
-graph_path = f'{system_path}/backtester/graph'
-db_setting = f'{system_path}/database/setting.db'
-db_backtest = f'{system_path}/database/backtest.db'
-db_tradelist = f'{system_path}/database/tradelist.db'
-db_stock_tick = f'{system_path}/database/stock_tick.db'
-db_coin_tick = f'{system_path}/database/coin_tick.db'
+OPENAPI_PATH = 'D:/OpenAPI'
+SYSTEM_PATH = 'D:/PythonProjects/PyStockTrader'
+GRAPH_PATH = f'{SYSTEM_PATH}/backtester/graph'
+DB_SETTING = f'{SYSTEM_PATH}/database/setting.db'
+DB_BACKTEST = f'{SYSTEM_PATH}/database/backtest.db'
+DB_TRADELIST = f'{SYSTEM_PATH}/database/tradelist.db'
+DB_STOCK_TICK = f'{SYSTEM_PATH}/database/stock_tick.db'
+DB_COIN_TICK = f'{SYSTEM_PATH}/database/coin_tick.db'
+
+conn = sqlite3.connect(DB_SETTING)
+df_m = pd.read_sql('SELECT * FROM main', conn).set_index('index')
+df_s = pd.read_sql('SELECT * FROM stock', conn).set_index('index')
+df_c = pd.read_sql('SELECT * FROM coin', conn).set_index('index')
+df_k = pd.read_sql('SELECT * FROM kiwoom', conn).set_index('index')
+df_u = pd.read_sql('SELECT * FROM upbit', conn).set_index('index')
+df_t = pd.read_sql('SELECT * FROM telegram', conn).set_index('index')
+conn.close()
+
+DICT_SET = {
+    '키움콜렉터': df_m['키움콜렉터'][0],
+    '키움트레이더': df_m['키움트레이더'][0],
+    '업비트콜렉터': df_m['업비트콜렉터'][0],
+    '업비트트레이더': df_m['업비트트레이더'][0],
+    '백테스터': df_m['백테스터'][0],
+    '백테스터시작시간': df_m['시작시간'][0],
+
+    '아이디1': df_k['아이디1'][0] if len(df_k) > 0 and df_k['아이디1'][0] != '' else None,
+    '비밀번호1': df_k['비밀번호1'][0] if len(df_k) > 0 and df_k['비밀번호1'][0] != '' else None,
+    '인증서비밀번호1': df_k['인증서비밀번호1'][0] if len(df_k) > 0 and df_k['인증서비밀번호1'][0] != '' else None,
+    '계좌비밀번호1': df_k['계좌비밀번호1'][0] if len(df_k) > 0 and df_k['계좌비밀번호1'][0] != '' else None,
+    '아이디2': df_k['아이디2'][0] if len(df_k) > 0 and df_k['아이디2'][0] != '' else None,
+    '비밀번호2': df_k['비밀번호2'][0] if len(df_k) > 0 and df_k['비밀번호2'][0] != '' else None,
+    '인증서비밀번호2': df_k['인증서비밀번호2'][0] if len(df_k) > 0 and df_k['인증서비밀번호2'][0] != '' else None,
+    '계좌비밀번호2': df_k['계좌비밀번호2'][0] if len(df_k) > 0 and df_k['계좌비밀번호2'][0] != '' else None,
+
+    'Access_key': df_u['Access_key'][0] if len(df_u) > 0 and df_k['Access_key'][0] != '' else None,
+    'Secret_key': df_u['Secret_key'][0] if len(df_u) > 0 and df_k['Secret_key'][0] != '' else None,
+
+    '텔레그램봇토큰': df_u['str_bot'][0] if len(df_t) > 0 and df_t['str_bot'][0] != '' else None,
+    '텔레그램사용자아이디': df_u['int_id'][0] if len(df_t) > 0 and df_t['int_id'][0] != '' else None,
+
+    '모의투자1': df_s['모의투자'][0],
+    '알림소리1': df_s['알림소리'][0],
+    '버전업': df_s['버전업'][0],
+    '자동로그인2': df_s['자동로그인2'][0],
+    '콜렉터': df_s['콜렉터'][0],
+    '자동로그인1': df_s['자동로그인1'][0],
+    '트레이더': df_s['트레이더'][0],
+    '전략시작': df_s['전략시작'][0],
+    '잔고청산': df_s['잔고청산'][0],
+    '전략종료': df_s['전략종료'][0],
+    '체결강도차이1': df_s['체결강도차이'][0],
+    '평균시간1': df_s['평균시간'][0],
+    '거래대금차이1': df_s['거래대금차이'][0],
+    '체결강도하한1': df_s['체결강도하한'][0],
+    '누적거래대금하한1': df_s['누적거래대금하한'][0],
+    '등락율하한1': df_s['등락율하한'][0],
+    '등락율상한1': df_s['등락율상한'][0],
+    '청산수익률1': df_s['청산수익률'][0],
+    '최대매수종목수1': df_s['최대매수종목수'][0],
+
+    '모의투자2': df_c['모의투자'][0],
+    '알림소리2': df_c['알림소리'][0],
+    '체결강도차이2': df_c['체결강도차이'][0],
+    '평균시간2': df_c['평균시간'][0],
+    '거래대금차이2': df_c['거래대금차이'][0],
+    '체결강도하한2': df_c['체결강도하한'][0],
+    '누적거래대금하한2': df_c['누적거래대금하한'][0],
+    '등락율하한2': df_c['등락율하한'][0],
+    '등락율상한2': df_c['등락율상한'][0],
+    '청산수익률2': df_c['청산수익률'][0],
+    '최대매수종목수2': df_c['최대매수종목수'][0]
+}
 
 qfont = QFont()
 qfont.setFamily('나눔고딕')
 qfont.setPixelSize(12)
-
-conn = sqlite3.connect(db_setting)
-df_s = pd.read_sql('SELECT * FROM stock', conn)
-df_s = df_s.set_index('index')
-conn.close()
-
-stock_vjup_time = df_s['버전업'][0]
-stock_alg2_time = df_s['자동로그인2'][0]
-stock_coll_time = df_s['콜렉터'][0]
-stock_alg1_time = df_s['자동로그인1'][0]
-stock_trad_time = df_s['트레이더'][0]
-stock_init_time = df_s['전략시작'][0]
-stock_exit_time = df_s['전략종료'][0]
-stock_csan_time = stock_exit_time - 100
 
 sn_brrq = 1000
 sn_brrd = 1001

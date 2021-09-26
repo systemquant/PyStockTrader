@@ -5,7 +5,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from multiprocessing import Process, Queue
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from utility.setting import db_setting, db_backtest, db_stock_tick, graph_path
+from utility.setting import DB_SETTING, DB_BACKTEST, DB_STOCK_TICK, GRAPH_PATH
 from utility.static import now, strf_time, strp_time, timedelta_sec, timedelta_day
 
 
@@ -69,7 +69,7 @@ class BackTester1Stock:
         self.Start()
 
     def Start(self):
-        conn = sqlite3.connect(db_stock_tick)
+        conn = sqlite3.connect(DB_STOCK_TICK)
         tcount = len(self.code_list)
         int_daylimit = int(strf_time('%Y%m%d', timedelta_day(-self.testperiod)))
         for k, code in enumerate(self.code_list):
@@ -338,7 +338,7 @@ class Total:
                     [[onegm, onedaycount, tc, avghold, pc, mc, pper, avgsp, tsp, tsg, self.gap_ch, self.avg_time,
                       self.gap_sm, self.ch_low, self.dm_low, self.per_low, self.per_high, self.cs_per]],
                     columns=columns2, index=[strf_time('%Y%m%d%H%M%S')])
-                conn = sqlite3.connect(db_backtest)
+                conn = sqlite3.connect(DB_BACKTEST)
                 df_back.to_sql(f"{strf_time('%Y%m%d')}_1c", conn, if_exists='append', chunksize=1000)
                 conn.close()
 
@@ -347,12 +347,12 @@ class Total:
             df_tsg.sort_values(by=['체결시간'], inplace=True)
             df_tsg['ttsg_cumsum'] = df_tsg['ttsg'].cumsum()
             df_tsg[['ttsg', 'ttsg_cumsum']] = df_tsg[['ttsg', 'ttsg_cumsum']].astype(int)
-            conn = sqlite3.connect(db_backtest)
+            conn = sqlite3.connect(DB_BACKTEST)
             df_tsg.to_sql(f"{strf_time('%Y%m%d')}_it", conn, if_exists='replace', chunksize=1000)
             conn.close()
             df_tsg.plot(figsize=(12, 9), rot=45)
-            plt.savefig(f"{graph_path}/S{strf_time('%Y%m%d')}_1.png")
-            conn = sqlite3.connect(db_setting)
+            plt.savefig(f"{GRAPH_PATH}/S{strf_time('%Y%m%d')}_1.png")
+            conn = sqlite3.connect(DB_SETTING)
             cur = conn.cursor()
             query = f"UPDATE stock SET 체결강도차이 = {self.gap_ch}, 평균시간 = {self.avg_time}, "\
                     f"거래대금차이 = {self.gap_sm}, 체결강도하한 = {self.ch_low}, 누적거래대금하한 = {self.dm_low}, "\
@@ -367,7 +367,7 @@ class Total:
 if __name__ == "__main__":
     start = now()
 
-    con = sqlite3.connect(db_stock_tick)
+    con = sqlite3.connect(DB_STOCK_TICK)
     df1 = pd.read_sql('SELECT * FROM codename', con)
     df1 = df1.set_index('index')
     df2 = pd.read_sql("SELECT name FROM sqlite_master WHERE TYPE = 'table'", con)

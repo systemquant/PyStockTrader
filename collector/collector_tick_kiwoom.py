@@ -112,8 +112,6 @@ class CollectorTickKiwoom:
             '틱8': []
         }
         self.dict_bool = {
-            '알림소리': False,
-
             'TR수신': False,
             'TR다음': False,
             'CD수신': False,
@@ -180,12 +178,6 @@ class CollectorTickKiwoom:
             cond_index, cond_name = condition.split('^')
             self.dict_cond[int(cond_index)] = cond_name
 
-        con = sqlite3.connect(db_setting)
-        df = pd.read_sql('SELECT * FROM stock', con)
-        df = df.set_index('index')
-        self.dict_bool['알림소리'] = df['알림소리'][0]
-        con.close()
-
         self.windowQ.put([ui_num['S단순텍스트'], '시스템 명령 실행 알림 - OpenAPI 로그인 완료'])
 
     def EventLoop(self):
@@ -202,9 +194,9 @@ class CollectorTickKiwoom:
             if self.dict_intg['장운영상태'] == 1 and now() > self.dict_time['휴무종료']:
                 break
             if self.dict_intg['장운영상태'] == 3:
-                if int_time < stock_init_time <= int(strf_time('%H%M%S')):
+                if int_time < DICT_SET['전략시작'] <= int(strf_time('%H%M%S')):
                     self.ConditionSearchStart()
-                if int_time < stock_exit_time + 100 <= int(strf_time('%H%M%S')):
+                if int_time < DICT_SET['전략종료'] + 100 <= int(strf_time('%H%M%S')):
                     self.ConditionSearchStop()
                     self.RemoveRealreg()
                     self.SaveDatabase()
@@ -223,7 +215,7 @@ class CollectorTickKiwoom:
             int_time = int(strf_time('%H%M%S'))
 
         self.windowQ.put([ui_num['S단순텍스트'], '시스템 명령 실행 알림 - 콜렉터를 종료합니다.'])
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             self.soundQ.put('주식 콜렉터를 종료합니다.')
         self.teleQ.put('주식 콜렉터를 종료하였습니다.')
         sys.exit()
@@ -267,8 +259,6 @@ class CollectorTickKiwoom:
                            거래량구분='0', 거래대금구분='0', 발동방향='0', output='발동종목', next=0)
         self.windowQ.put([ui_num['S단순텍스트'], '시스템 명령 실행 알림 - VI발동해제 등록 완료'])
         self.windowQ.put([ui_num['S단순텍스트'], '시스템 명령 실행 알림 - 시스템 시작 완료'])
-        if self.dict_bool['알림소리']:
-            self.soundQ.put('주식 콜렉터를 시작하였습니다.')
 
     def ConditionSearchStart(self):
         self.list_code = self.SendCondition(sn_cond, self.dict_cond[0], 0, 1)
@@ -283,7 +273,7 @@ class CollectorTickKiwoom:
 
     def SaveDatabase(self):
         self.queryQ.put([3, self.df_mt, 'moneytop', 'append'])
-        con = sqlite3.connect(db_tradelist)
+        con = sqlite3.connect(DB_TRADELIST)
         df = pd.read_sql(f"SELECT * FROM s_tradelist WHERE 체결시간 LIKE '{self.str_tday}%'", con)
         con.close()
         df = df.set_index('index')

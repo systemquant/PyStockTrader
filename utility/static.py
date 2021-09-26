@@ -1,7 +1,7 @@
 import zipfile
 import datetime
 from threading import Thread
-from utility.setting import openapi_path
+from utility.setting import OPENAPI_PATH
 
 
 def thread_decorator(func):
@@ -62,7 +62,7 @@ def changeFormat(text):
 
 
 def readEnc(trcode):
-    enc = zipfile.ZipFile(f'{openapi_path}/data/{trcode}.enc')
+    enc = zipfile.ZipFile(f'{OPENAPI_PATH}/data/{trcode}.enc')
     lines = enc.read(trcode.upper() + '.dat').decode('cp949')
     return lines
 

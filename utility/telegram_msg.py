@@ -1,8 +1,7 @@
-import sqlite3
 import telegram
 import pandas as pd
 from telegram.ext import Updater, MessageHandler, Filters
-from utility.setting import db_setting, ui_num
+from utility.setting import ui_num, DICT_SET
 
 
 class TelegramMsg:
@@ -13,17 +12,10 @@ class TelegramMsg:
         self.teleQ = teleQ
         self.updater = None
 
-        con = sqlite3.connect(db_setting)
-        df = pd.read_sql('SELECT * FROM telegram', con)
-        con.close()
-        if len(df) > 0 and df['str_bot'][0] != '':
-            self.str_botn = df['str_bot'][0]
-            self.int_usid = int(df['int_id'][0])
-            self.bot = telegram.Bot(self.str_botn)
+        if DICT_SET['텔레그램봇토큰'] is not None:
+            self.bot = telegram.Bot(DICT_SET['텔레그램봇토큰'])
             self.SetCustomButton()
         else:
-            self.str_botn = None
-            self.int_usid = None
             self.bot = None
         self.Start()
 
@@ -42,8 +34,10 @@ class TelegramMsg:
     def SetCustomButton(self):
         custum_button = [['/당일체결목록', '/당일거래목록', '/계좌잔고평가', '/잔고청산주문']]
         reply_markup = telegram.ReplyKeyboardMarkup(custum_button)
-        self.bot.send_message(chat_id=self.int_usid, text='사용자버튼 설정을 완료하였습니다.', reply_markup=reply_markup)
-        self.updater = Updater(self.str_botn)
+        self.bot.send_message(chat_id=DICT_SET['텔레그램사용자아이디'],
+                              text='사용자버튼 설정을 완료하였습니다.',
+                              reply_markup=reply_markup)
+        self.updater = Updater(DICT_SET['텔레그램봇토큰'])
         self.updater.dispatcher.add_handler(MessageHandler(Filters.text, self.ButtonClicked))
         self.updater.start_polling(drop_pending_updates=True)
 
@@ -55,7 +49,7 @@ class TelegramMsg:
     def SendMsg(self, msg):
         if self.bot is not None:
             try:
-                self.bot.sendMessage(chat_id=self.int_usid, text=msg)
+                self.bot.sendMessage(chat_id=DICT_SET['텔레그램사용자아이디'], text=msg)
             except Exception as e:
                 self.windowQ.put([ui_num['설정텍스트'], f'시스템 명령 오류 알림 - SendMsg {e}'])
         else:

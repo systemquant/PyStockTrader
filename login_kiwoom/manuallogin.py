@@ -1,26 +1,10 @@
 import os
 import sys
-import sqlite3
 import win32api
 import win32con
 import win32gui
-import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from utility.setting import db_setting
-
-con = sqlite3.connect(db_setting)
-df = pd.read_sql('SELECT * FROM kiwoom', con)
-df = df.set_index('index')
-con.close()
-
-USER_ID1 = df['아이디1'][0]
-USER_PW1 = df['비밀번호1'][0]
-USER_CR1 = df['인증서비밀번호1'][0]
-USER_CP1 = df['계좌비밀번호1'][0]
-USER_ID2 = df['아이디2'][0]
-USER_PW2 = df['비밀번호2'][0]
-USER_CR2 = df['인증서비밀번호2'][0]
-USER_CP2 = df['계좌비밀번호2'][0]
+from utility.setting import *
 
 
 def window_enumeration_handler(hwndd, top_windows):
@@ -72,16 +56,16 @@ def manual_login(gubun):
         if not win32gui.IsWindowEnabled(win32gui.GetDlgItem(hwndd, 0x3EA)):
             click_button(win32gui.GetDlgItem(hwndd, 0x3ED))
     if gubun in [1, 2]:
-        enter_keys(win32gui.GetDlgItem(hwndd, 0x3E8), USER_ID1)
-        enter_keys(win32gui.GetDlgItem(hwndd, 0x3E9), USER_PW1)
+        enter_keys(win32gui.GetDlgItem(hwndd, 0x3E8), DICT_SET['아이디1'])
+        enter_keys(win32gui.GetDlgItem(hwndd, 0x3E9), DICT_SET['비밀번호1'])
         if gubun == 2:
-            enter_keys(win32gui.GetDlgItem(hwndd, 0x3EA), USER_CR1)
+            enter_keys(win32gui.GetDlgItem(hwndd, 0x3EA), DICT_SET['인증서비밀번호1'])
             click_button(win32gui.GetDlgItem(hwndd, 0x1))
     elif gubun in [3, 4]:
-        enter_keys(win32gui.GetDlgItem(hwndd, 0x3E8), USER_ID2)
-        enter_keys(win32gui.GetDlgItem(hwndd, 0x3E9), USER_PW2)
+        enter_keys(win32gui.GetDlgItem(hwndd, 0x3E8), DICT_SET['아이디2'])
+        enter_keys(win32gui.GetDlgItem(hwndd, 0x3E9), DICT_SET['비밀번호2'])
         if gubun == 4:
-            enter_keys(win32gui.GetDlgItem(hwndd, 0x3EA), USER_CR2)
+            enter_keys(win32gui.GetDlgItem(hwndd, 0x3EA), DICT_SET['인증서비밀번호2'])
             click_button(win32gui.GetDlgItem(hwndd, 0x1))
     click_button(win32gui.GetDlgItem(hwndd, 0x1))
 
@@ -95,9 +79,9 @@ def auto_on(gubun):
     if hwndd != 0:
         edit = win32gui.GetDlgItem(hwndd, 0xCC)
         if gubun == 1:
-            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, USER_CP1)
+            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, DICT_SET['계좌비밀번호1'])
         elif gubun == 2:
-            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, USER_CP2)
+            win32gui.SendMessage(edit, win32con.WM_SETTEXT, 0, DICT_SET['계좌비밀번호2'])
         click_button(win32gui.GetDlgItem(hwndd, 0xD4))
         click_button(win32gui.GetDlgItem(hwndd, 0xD3))
         click_button(win32gui.GetDlgItem(hwndd, 0x01))

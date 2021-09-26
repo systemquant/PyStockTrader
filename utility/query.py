@@ -1,5 +1,5 @@
 import sqlite3
-from utility.setting import ui_num, db_tradelist, db_stock_tick, db_coin_tick, db_setting
+from utility.setting import ui_num, DB_TRADELIST, DB_STOCK_TICK, DB_COIN_TICK, DB_SETTING
 
 
 class Query:
@@ -7,12 +7,12 @@ class Query:
         self.windowQ = windowQ
         self.collectorQ = collectorQ
         self.queryQ = queryQ
-        self.con1 = sqlite3.connect(db_setting)
+        self.con1 = sqlite3.connect(DB_SETTING)
         self.cur1 = self.con1.cursor()
-        self.con2 = sqlite3.connect(db_tradelist)
+        self.con2 = sqlite3.connect(DB_TRADELIST)
         self.cur2 = self.con2.cursor()
-        self.con3 = sqlite3.connect(db_stock_tick)
-        self.con4 = sqlite3.connect(db_coin_tick)
+        self.con3 = sqlite3.connect(DB_STOCK_TICK)
+        self.con4 = sqlite3.connect(DB_COIN_TICK)
         self.Start()
 
     def __del__(self):

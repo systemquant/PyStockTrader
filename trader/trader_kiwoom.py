@@ -42,16 +42,13 @@ class TraderKiwoom:
             '예수금': 0,
             '추정예수금': 0,
             '추정예탁자산': 0,
-            '단타투자금액': 0
+            '종목당투자금': 0
         }
         self.dict_strg = {
             '당일날짜': strf_time('%Y%m%d'),
             '계좌번호': ''
         }
         self.dict_bool = {
-            '모의투자': False,
-            '알림소리': False,
-
             '로그인': False,
             'TR수신': False,
             'TR다음': False,
@@ -82,14 +79,7 @@ class TraderKiwoom:
         self.EventLoop()
 
     def LoadDatabase(self):
-        con = sqlite3.connect(db_setting)
-        df = pd.read_sql('SELECT * FROM stock', con)
-        df = df.set_index('index')
-        self.dict_bool['모의투자'] = df['모의투자'][0]
-        self.dict_bool['알림소리'] = df['알림소리'][0]
-        con.close()
-
-        con = sqlite3.connect(db_tradelist)
+        con = sqlite3.connect(DB_TRADELIST)
         df = pd.read_sql(f"SELECT * FROM s_chegeollist WHERE 체결시간 LIKE '{self.dict_strg['당일날짜']}%'", con)
         self.dict_df['체결목록'] = df.set_index('index').sort_values(by=['체결시간'], ascending=False)
 
@@ -136,7 +126,7 @@ class TraderKiwoom:
             self.dict_cond[int(cond_index)] = cond_name
 
         self.windowQ.put([ui_num['S로그텍스트'], '시스템 명령 실행 알림 - OpenAPI 로그인 완료'])
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             self.soundQ.put('키움증권 오픈에이피아이에 로그인하였습니다.')
 
     def EventLoop(self):
@@ -162,15 +152,14 @@ class TraderKiwoom:
             if self.dict_intg['장운영상태'] == 1 and now() > self.exit_time:
                 break
 
-            if self.dict_intg['장운영상태'] == 3:
-                if int_time < stock_init_time <= int(strf_time('%H%M%S')):
-                    self.ConditionSearchStart()
-                if int_time < stock_csan_time <= int(strf_time('%H%M%S')):
-                    self.ConditionSearchStop()
-                    self.AllRemoveRealreg()
-                    self.JangoChungsan()
-                if int_time < stock_exit_time <= int(strf_time('%H%M%S')):
-                    break
+            if int_time < DICT_SET['전략시작'] <= int(strf_time('%H%M%S')):
+                self.ConditionSearchStart()
+            if int_time < DICT_SET['잔고청산'] <= int(strf_time('%H%M%S')):
+                self.ConditionSearchStop()
+                self.AllRemoveRealreg()
+                self.JangoChungsan()
+            if int_time < DICT_SET['전략종료'] <= int(strf_time('%H%M%S')):
+                break
 
             if int_time != int(strf_time('%H%M%S')):
                 self.UpdateTotaljango()
@@ -183,7 +172,7 @@ class TraderKiwoom:
             int_time = int(strf_time('%H%M%S'))
 
         self.windowQ.put([ui_num['S로그텍스트'], '시스템 명령 실행 알림 - 트레이더를 종료합니다.'])
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             self.soundQ.put('주식 트레이더를 종료합니다.')
         self.teleQ.put('주식 트레이더를 종료하였습니다.')
         sys.exit()
@@ -218,7 +207,7 @@ class TraderKiwoom:
             self.list_sell.append(code)
             on = 2
 
-        if self.dict_bool['모의투자'] or gubun == '시드부족':
+        if DICT_SET['모의투자1'] or gubun == '시드부족':
             self.UpdateChejanData(code, name, '체결', gubun, c, c, oc, 0,
                                   strf_time('%Y%m%d%H%M%S%f'), strf_time('%Y%m%d%H%M%S%f'))
         else:
@@ -284,7 +273,7 @@ class TraderKiwoom:
             df = self.Block_Request('opw00004', 계좌번호=self.dict_strg['계좌번호'], 비밀번호='', 상장폐지조회구분=0,
                                     비밀번호입력매체구분='00', output='계좌평가현황', next=0)
             if df['D+2추정예수금'][0] != '':
-                if self.dict_bool['모의투자']:
+                if DICT_SET['모의투자1']:
                     self.dict_intg['예수금'] = 100000000 - jggm + sigm
                 else:
                     self.dict_intg['예수금'] = int(df['D+2추정예수금'][0])
@@ -298,13 +287,13 @@ class TraderKiwoom:
             df = self.Block_Request('opw00018', 계좌번호=self.dict_strg['계좌번호'], 비밀번호='', 비밀번호입력매체구분='00',
                                     조회구분=2, output='계좌평가결과', next=0)
             if df['추정예탁자산'][0] != '':
-                if self.dict_bool['모의투자']:
+                if DICT_SET['모의투자1']:
                     self.dict_intg['추정예탁자산'] = self.dict_intg['예수금'] + pggm
                 else:
                     self.dict_intg['추정예탁자산'] = int(df['추정예탁자산'][0])
-                self.dict_intg['단타투자금액'] = int(self.dict_intg['추정예탁자산'] * 0.99)
+                self.dict_intg['종목당투자금'] = int(self.dict_intg['추정예탁자산'] * 0.99 / DICT_SET['최대매수종목수1'])
 
-                if self.dict_bool['모의투자']:
+                if DICT_SET['모의투자1']:
                     self.dict_df['잔고평가'].at[self.dict_strg['당일날짜']] = \
                         self.dict_intg['추정예탁자산'], self.dict_intg['예수금'], 0, 0, 0, 0, 0
                 else:
@@ -343,19 +332,19 @@ class TraderKiwoom:
                 else:
                     self.sstgQ.put(['조건진입마지막', code])
             self.stockQ.put([sn_jscg, ';'.join(codes), '10;12;14;30;228', 1])
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             self.soundQ.put('실시간 조건검색식을 등록하였습니다.')
         self.windowQ.put([ui_num['S로그텍스트'], f'시스템 명령 실행 알림 - 실시간 조건검색식 등록 완료'])
 
     def ConditionSearchStop(self):
         self.ocx.dynamicCall("SendConditionStop(QString, QString, int)", sn_cond, self.dict_cond[0], 0)
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             self.soundQ.put('실시간 조건검색식을 중단하였습니다.')
         self.windowQ.put([ui_num['S로그텍스트'], f'시스템 명령 실행 알림 - 실시간 조건검색식 중단 완료'])
 
     def AllRemoveRealreg(self):
         self.stockQ.put(['ALL', 'ALL'])
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             self.soundQ.put('실시간 데이터의 수신을 중단하였습니다.')
         self.windowQ.put([ui_num['S로그텍스트'], f'시스템 명령 실행 알림 - 실시간 데이터 중단 완료'])
 
@@ -367,13 +356,13 @@ class TraderKiwoom:
                 c = self.dict_df['잔고목록']['현재가'][code]
                 oc = self.dict_df['잔고목록']['보유수량'][code]
                 name = self.dict_name[code]
-                if self.dict_bool['모의투자']:
+                if DICT_SET['모의투자1']:
                     self.list_sell.append(code)
                     self.UpdateChejanData(code, name, '체결', '매도', c, c, oc, 0,
                                           strf_time('%Y%m%d%H%M%S%f'), strf_time('%Y%m%d%H%M%S%f'))
                 else:
                     self.Order('매도', code, name, c, oc)
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             self.soundQ.put('잔고청산 주문을 전송하였습니다.')
         self.windowQ.put([ui_num['S로그텍스트'], '시스템 명령 실행 알림 - 잔고청산 주문 완료'])
 
@@ -490,7 +479,7 @@ class TraderKiwoom:
                         injango = code in self.dict_df['잔고목록'].index
                         vitimedown = now() < self.dict_vipr[code][2]
                         vid5priceup = c >= self.dict_vipr[code][5]
-                        batting = self.dict_intg['단타투자금액']
+                        batting = self.dict_intg['종목당투자금']
                         data = [code, name, c, o, h, low, per, ch, dm, t, injango, vitimedown, vid5priceup, batting]
                         self.sstgQ.put(data)
                         if injango:
@@ -498,7 +487,7 @@ class TraderKiwoom:
 
     @thread_decorator
     def OperationAlert(self, current, remain):
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             if current == '084000':
                 self.soundQ.put('장시작 20분 전입니다.')
             elif current == '085000':
@@ -612,7 +601,7 @@ class TraderKiwoom:
     def OnReceiveChejanData(self, gubun, itemcnt, fidlist):
         if gubun != '0' and itemcnt != '' and fidlist != '':
             return
-        if self.dict_bool['모의투자']:
+        if DICT_SET['모의투자1']:
             return
         on = self.GetChejanData(9203)
         if on == '':
@@ -688,7 +677,7 @@ class TraderKiwoom:
         self.dict_df['잔고목록'][columns] = self.dict_df['잔고목록'][columns].astype(int)
         self.dict_df['잔고목록'].sort_values(by=['매입금액'], inplace=True)
         self.queryQ.put([2, self.dict_df['잔고목록'], 's_jangolist', 'replace'])
-        if self.dict_bool['알림소리']:
+        if DICT_SET['알림소리1']:
             self.soundQ.put(f'{name} {oc}주를 {og}하였습니다')
 
         if og == '매수':
@@ -700,7 +689,7 @@ class TraderKiwoom:
 
     def UpdateTradelist(self, name, oc, sp, sg, bg, pg, on):
         d = strf_time('%Y%m%d%H%M%S')
-        if self.dict_bool['모의투자'] and len(self.dict_df['거래목록']) > 0:
+        if DICT_SET['모의투자1'] and len(self.dict_df['거래목록']) > 0:
             if on in self.dict_df['거래목록'].index:
                 while on in self.dict_df['거래목록'].index:
                     on = str(int(on) + 1)
@@ -735,7 +724,7 @@ class TraderKiwoom:
                 f"총손실금액 {format(int(tssg), ',')}원 / 수익률 {sp}% / 수익금합계 {format(int(sg), ',')}원")
 
     def UpdateChegeollist(self, name, og, oc, omc, op, cp, dt, on):
-        if self.dict_bool['모의투자'] and len(self.dict_df['체결목록']) > 0:
+        if DICT_SET['모의투자1'] and len(self.dict_df['체결목록']) > 0:
             if on in self.dict_df['체결목록'].index:
                 while on in self.dict_df['체결목록'].index:
                     on = str(int(on) + 1)

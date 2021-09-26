@@ -5,7 +5,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from multiprocessing import Process, Queue
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from utility.setting import db_backtest, db_coin_tick
+from utility.setting import DB_BACKTEST, DB_COIN_TICK
 from utility.static import now, strf_time, timedelta_day
 
 
@@ -50,7 +50,7 @@ class BackTester2mCoin:
         self.Start()
 
     def Start(self):
-        conn = sqlite3.connect(db_coin_tick)
+        conn = sqlite3.connect(DB_COIN_TICK)
         tcount = len(self.ticker_list)
         int_daylimit = int(strf_time('%Y%m%d', timedelta_day(-self.testperiod)))
         for k, ticker in enumerate(self.ticker_list):
@@ -303,7 +303,7 @@ class Total:
                        f" 종목출현빈도수 {onedaycount}개/초, 거래횟수 {tc}회, 평균보유기간 {avghold}초,\n 익절 {pc}회, "\
                        f" 손절 {mc}회, 승률 {pper}%, 평균수익률 {avgsp}%, 수익률합계 {tsp}%, 수익금합계 {format(tsg, ',')}원"
                 print(text)
-                conn = sqlite3.connect(db_backtest)
+                conn = sqlite3.connect(DB_BACKTEST)
                 df_back.to_sql(f"{strf_time('%Y%m%d')}_2cm", conn, if_exists='replace', chunksize=1000)
                 conn.close()
 
@@ -312,7 +312,7 @@ class Total:
             df_tsg.sort_values(by=['체결시간'], inplace=True)
             df_tsg['ttsg_cumsum'] = df_tsg['ttsg'].cumsum()
             df_tsg[['ttsg', 'ttsg_cumsum']] = df_tsg[['ttsg', 'ttsg_cumsum']].astype(int)
-            conn = sqlite3.connect(db_backtest)
+            conn = sqlite3.connect(DB_BACKTEST)
             df_tsg.to_sql(f"{strf_time('%Y%m%d')}_2tm", conn, if_exists='replace', chunksize=1000)
             conn.close()
             df_tsg.plot(figsize=(12, 9), rot=45)
@@ -322,7 +322,7 @@ class Total:
 if __name__ == "__main__":
     start = now()
 
-    con = sqlite3.connect(db_coin_tick)
+    con = sqlite3.connect(DB_COIN_TICK)
     df = pd.read_sql("SELECT name FROM sqlite_master WHERE TYPE = 'table'", con)
     con.close()
 
