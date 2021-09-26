@@ -80,7 +80,7 @@ class TraderUpbit(QThread):
         """ 예수금 조회 및 종목당투자금 계산 """
         if DICT_SET['모의투자2']:
             self.dict_intg['예수금'] = 100000000 - self.df_jg['매입금액'].sum() + self.df_jg['평가손익'].sum()
-            self.dict_intg['종목당투자금'] = int(100000000 * 0.99 / self.dict_intg['최대매수종목수'])
+            self.dict_intg['종목당투자금'] = int(100000000 * 0.99 / DICT_SET['최대매수종목수2'])
         elif self.upbit is not None:
             self.dict_intg['예수금'] = int(float(self.upbit.get_balances()[0]['balance']))
             self.dict_intg['종목당투자금'] = int(self.dict_intg['예수금'] * 0.99 / DICT_SET['최대매수종목수2'])
