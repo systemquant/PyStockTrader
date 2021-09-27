@@ -53,7 +53,8 @@ class UpdaterTickKiwoom:
         else:
             sm = int(dm - self.dict_df[code]['누적거래대금'][-1])
             self.dict_df[code].at[d] = \
-                c, o, h, per, hlmp, sm, dm, ch, vp, vitime, vid5, s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg
+                c, o, h, per, hlmp, sm, dm, ch, vp, bids, asks, vitime, vid5,\
+                s1jr, s2jr, b1jr, b2jr, s1hg, s2hg, b1hg, b2hg
 
         if now() > self.time_info:
             self.UpdateInfo(receiv_time)
@@ -65,18 +66,12 @@ class UpdaterTickKiwoom:
 
     def PutTickData(self, codes):
         for code in list(self.dict_df.keys()):
-            columns = ['현재가', '시가', '고가', '거래대금', '누적거래대금', '상승VID5가격', '매수수량', '매도수량',
-                       '매도호가2', '매도호가1', '매수호가1', '매수호가2', '매도잔량2', '매도잔량1', '매수잔량1', '매수잔량2']
-            self.dict_df[code][columns] = self.dict_df[code][columns].astype(int)
-            """
-            당일 거래목록만 저장
             if code in codes:
                 columns = ['현재가', '시가', '고가', '거래대금', '누적거래대금', '상승VID5가격', '매수수량', '매도수량',
                            '매도호가2', '매도호가1', '매수호가1', '매수호가2', '매도잔량2', '매도잔량1', '매수잔량1', '매수잔량2']
                 self.dict_df[code][columns] = self.dict_df[code][columns].astype(int)
             else:
                 del self.dict_df[code]
-            """
         self.queryQ.put([3, self.dict_df])
         sys.exit()
 
@@ -189,16 +184,17 @@ class CollectorTickKiwoom:
             if not self.collectorQ.empty():
                 work = self.collectorQ.get()
                 self.UpdateRealreg(work)
+
             if self.dict_intg['장운영상태'] == 1 and now() > self.dict_time['휴무종료']:
                 break
-            if self.dict_intg['장운영상태'] == 3:
-                if int_time < DICT_SET['전략시작'] <= int(strf_time('%H%M%S')):
-                    self.ConditionSearchStart()
-                if int_time < DICT_SET['전략종료'] <= int(strf_time('%H%M%S')):
-                    self.ConditionSearchStop()
-                    self.RemoveRealreg()
-                    self.SaveDatabase()
-                    break
+
+            if int_time < DICT_SET['전략시작'] <= int(strf_time('%H%M%S')):
+                self.ConditionSearchStart()
+            if int_time < DICT_SET['전략종료'] <= int(strf_time('%H%M%S')):
+                self.ConditionSearchStop()
+                self.RemoveRealreg()
+                self.SaveDatabase()
+                break
 
             if now() > self.time_mtop:
                 if len(self.df_mt) > 0:
