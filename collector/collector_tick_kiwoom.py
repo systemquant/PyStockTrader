@@ -345,6 +345,8 @@ class CollectorTickKiwoom:
             except Exception as e:
                 self.windowQ.put([ui_num['S단순텍스트'], f'OnReceiveRealData 주식체결 {e}'])
             else:
+                if self.dict_intg['장운영상태'] == 1:
+                    self.dict_intg['장운영상태'] = 3
                 if t != self.str_jcct[8:]:
                     self.str_jcct = self.str_tday + t
                 if code not in self.dict_vipr.keys():
