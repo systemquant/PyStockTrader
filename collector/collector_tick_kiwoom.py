@@ -112,6 +112,7 @@ class CollectorTickKiwoom:
             '틱8': []
         }
         self.dict_bool = {
+            '로그인': False,
             'TR수신': False,
             'TR다음': False,
             'CD수신': False,
@@ -187,16 +188,13 @@ class CollectorTickKiwoom:
         while True:
             if not self.collectorQ.empty():
                 work = self.collectorQ.get()
-                if type(work) == list:
-                    self.UpdateRealreg(work)
-                elif type(work) == str:
-                    self.RunWork(work)
+                self.UpdateRealreg(work)
             if self.dict_intg['장운영상태'] == 1 and now() > self.dict_time['휴무종료']:
                 break
             if self.dict_intg['장운영상태'] == 3:
                 if int_time < DICT_SET['전략시작'] <= int(strf_time('%H%M%S')):
                     self.ConditionSearchStart()
-                if int_time < DICT_SET['전략종료'] + 100 <= int(strf_time('%H%M%S')):
+                if int_time < DICT_SET['전략종료'] <= int(strf_time('%H%M%S')):
                     self.ConditionSearchStop()
                     self.RemoveRealreg()
                     self.SaveDatabase()
@@ -232,10 +230,6 @@ class CollectorTickKiwoom:
                 self.windowQ.put([ui_num['S단순텍스트'], f'실시간 알림 등록 {result} - 장운영시간 [{sn}]'])
             else:
                 self.windowQ.put([ui_num['S단순텍스트'], f"실시간 알림 등록 {result} - [{sn}] 종목갯수 {len(rreg[1].split(';'))}"])
-
-    def RunWork(self, work):
-        if work == '틱데이터 저장 완료':
-            self.dict_bool['틱데이터저장'] = True
 
     def OperationRealreg(self):
         self.collectorQ.put([sn_oper, ' ', '215;20;214', 0])
@@ -290,7 +284,6 @@ class CollectorTickKiwoom:
         self.tick6Q.put(['틱데이터저장', codes])
         self.tick7Q.put(['틱데이터저장', codes])
         self.tick8Q.put(['틱데이터저장', codes])
-        self.dict_bool['DB저장'] = True
 
     def OnEventConnect(self, err_code):
         if err_code == 0:
